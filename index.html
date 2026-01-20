@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Egg Hunt</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Portrait uyarısı (mobil dik tutunca) -->
+  <div id="rotateOverlay" class="rotateOverlay" style="display:none;">
+    <div class="rotateCard">
+      <div class="rotateTitle">Telefonu YATAY çevir</div>
+      <div class="rotateDesc">Daha iyi oyun deneyimi için yatay mod gerekli.</div>
+    </div>
+  </div>
+
+  <!-- Üst sol HUD -->
+  <div id="hud" class="hud">
+    <div class="hudRow"><span class="hudLabel">Durum:</span> <span id="phaseText">LOBBY</span></div>
+    <div class="hudRow"><span class="hudLabel">Süre:</span> <span id="time">02:00</span></div>
+    <div class="hudRow"><span class="hudLabel">Yumurta:</span> <span id="eggs">1000</span></div>
+  </div>
+<div id="storyPanel" class="storyPanel" style="display:none;">
+  <div class="storyTitle">🌲 Orman Diyarı</div>
+  <div class="storyText">
+  
+    🌲 <b>Orman Diyarı’na Hoş Geldin, Maceracı!</b><br><br>
+
+    🐣 Bu topraklarda nesli tükenmekte olan canlıların 
+    <b>kutsal yumurtaları</b> dağılmış durumda.  
+    Görevin çok net: <b>bul, topla ve koru!</b><br><br>
+
+    🎯 Haritada toplam <b>1000 yumurta</b> bulunuyor.  
+    Aynı anda <b>20 cesur maceracı</b> ile yarışacaksın.<br>
+    ⏳ Süren yalnızca <b>8 dakika</b> — hızlı ol, rakiplerinden önce davran!<br><br>
+
+    🎮 <b>Nasıl oynanır?</b><br>
+    ➡️ PC’de <b>⬅️ ⬆️ ⬇️ ➡️ yön tuşları</b><br>
+    📱 Mobilde <b>joystick</b> ile karakterini kontrol et<br><br>
+
+    ⚡ <b>Hız & Dayanıklılık Sistemi</b><br>
+    🟦 Sol üstte <b>dayanıklılık (hız) barı</b> bulunur.<br>
+    🏃 Hareket ettikçe azalır, 🧍 durunca dolar.<br>
+    🔻 <b>500 altına düşerse</b> hızın yarıya iner.<br>
+
+    🧟‍♂️ <b>Zombi Saati (Zombie Hour)</b><br>
+    ⏰ Oyun başladıktan <b>4 dakika sonra</b> orman kararır…<br>
+    🌑 Sis artar ve <b>zombiler ortaya çıkar!</b><br><br>
+
+    🧟 <b>Zombi Türleri</b><br>
+    🟢 Normal Zombi → <b>-1 yumurta'nı çalar</b><br>
+    🟩 Büyük Zombi → <b>-2 yumurta'nı çalar</b><br>
+    🔵 Hızlı Zombi → Çok hızlı, <b>-1 yumurta'nı çalar</b><br><br>
+    🔥 <b>Son 1 dakikada</b> zombiler daha da artar!<br>
+
+    🏆 <b>En çok yumurtayı toplayan</b> maceracı  
+    bu turun <b>1.’si</b> olacak ve  
+    <b>daha fazla canlının hayatını kurtaracak!</b><br><br>
+
+    🔥 <b>Hazır ol…</b><br>
+    🌿 Orman seni bekliyor. <b>Macera başlamak üzere!</b><br><br>
+
+    <b>Şimdiden maceraya hazırlan…</b>
+  </div>
+</div>
+
+
+  <!-- Sağ panel -->
+  <aside class="sidePanel">
+    <div class="panelCard">
+      <div class="panelTitle">Skor Tablosu</div>
+      <div class="panelStat">
+        <div class="muted">Topladığın</div>
+        <div id="myEggs" class="big">0</div>
+      </div>
+      <div class="divider"></div>
+
+      <div class="muted" style="margin-bottom:8px;">Sıralama</div>
+      <div id="leaderboard" class="leaderboard"></div>
+    </div>
+
+    <div class="panelCard">
+      <div class="panelTitle">Lobby</div>
+      <div id="lobbyInfo" class="muted">Şuan lobbydesiniz. Oyun birazdan başlayacak.</div>
+	  <div id="countdownBig"></div>
+      <div class="divider"></div>
+      <div class="muted" style="margin-bottom:8px;">Katılanlar</div>
+      <div id="lobbyList" class="lobbyList"></div>
+    </div>
+  </aside>
+
+  <!-- Canvas -->
+  <canvas id="game"></canvas>
+
+  <!-- Joystick (mobil) -->
+  <div id="joystick" class="joy" style="display:none;">
+    <div class="joyBase"></div>
+    <div class="joyKnob" id="joyKnob"></div>
+  </div>
+
+  <!-- Login / avatar overlay -->
+  <div id="overlay" class="overlay">
+    <div class="overlayCard">
+      <div class="overlayTitle">Egg Hunt</div>
+      <div class="overlayDesc">
+        Nick seç, ikon seç ve lobby’ye katıl. <br/>
+        <span class="muted">Max 20 oyuncu (demo).</span>
+      </div>
+
+      <label class="fieldLabel">Nick (max 20)</label>
+      <input id="nickInput" class="fieldInput" maxlength="20" placeholder="örn: teknowep_nart" />
+
+      <div class="fieldLabel" style="margin-top:12px;">İkon seç (40)</div>
+      <div id="avatarGrid" class="avatarGrid"></div>
+
+      <div id="err" class="err"></div>
+
+      <button id="startBtn" class="btn">Lobby’ye Katıl</button>
+    </div>
+  </div>
+
+  <!-- Sonuç overlay -->
+  <div id="resultOverlay" class="resultOverlay" style="display:none;">
+    <div class="resultCard">
+      <div class="resultTitle" id="resultTitle">ROUND BİTTİ</div>
+      <div class="resultSub" id="resultSub">Yeni oyun 10 saniye içinde başlayacak…</div>
+      <div class="divider"></div>
+      <div id="resultList" class="resultList"></div>
+      <div class="divider"></div>
+      <div class="muted" id="resultCountdown">10</div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
