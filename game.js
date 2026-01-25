@@ -1053,17 +1053,27 @@
 
     // ===== phase UI (server time)
     // serverTimeLeftTotal azalacak, biz ona göre phaseLeft hesaplıyoruz.
-    if (phase === PHASE.LOBBY) {
-      if (hudTime) hudTime.textContent = formatTime(phaseLeft);
-      if (lobbyInfoEl) {
-        lobbyInfoEl.textContent = `Şuan lobbydesiniz. Oyun ${formatTime(phaseLeft)} içinde başlayacak. (Max ${MAX_PLAYERS})`;
-      }
-      if (countdownBig) {
-        countdownBig.textContent = `⏱️ Oyun ${Math.ceil(phaseLeft)} saniye sonra başlıyor…`;
-      }
-      if (storyPanel) storyPanel.style.display = "block";
-      if (resultOverlay) resultOverlay.style.display = "none";
-    }
+ if (phase === PHASE.LOBBY) {
+  if (hudTime) hudTime.textContent = formatTime(phaseLeft);
+
+  if (lobbyInfoEl) {
+    lobbyInfoEl.textContent =
+      `Şuan lobbydesiniz. Oyun ${formatTime(phaseLeft)} içinde başlayacak. (Max ${MAX_PLAYERS})`;
+  }
+
+  if (countdownBig) {
+    countdownBig.textContent =
+      `⏱️ Oyun ${Math.ceil(phaseLeft)} saniye sonra başlıyor…`;
+  }
+
+  // ✅ SADECE SON 5 SANİYE HİKAYE
+  if (phaseLeft <= 5 && storyPanel) {
+    storyPanel.style.display = "block";
+  }
+
+  if (resultOverlay) resultOverlay.style.display = "none";
+}
+
     else if (phase === PHASE.GAME) {
       if (hudTime) hudTime.textContent = formatTime(phaseLeft);
       if (lobbyInfoEl) lobbyInfoEl.textContent = `Oyun başladı! 8 dakika içinde yumurtaları topla.`;
@@ -1371,3 +1381,4 @@
 
   requestAnimationFrame(tick);
 })();
+
