@@ -93,6 +93,8 @@
   let zombieWarning = false;
   let extraZombiesAdded = false;
   let zombieWarningTimer = 0;
+	let storyShown = false;
+
 let remainingEggs = 0;
 	
   const zombies = [];
@@ -1045,12 +1047,12 @@ remainingEggs--;
 
     // ===== phase UI (server time)
     // serverTimeLeftTotal azalacak, biz ona göre phaseLeft hesaplıyoruz.
- if (phase === PHASE.LOBBY) {
+if (phase === PHASE.LOBBY) {
   if (hudTime) hudTime.textContent = formatTime(phaseLeft);
 
   if (lobbyInfoEl) {
     lobbyInfoEl.textContent =
-      `Şuan lobbydesiniz. Oyun ${formatTime(phaseLeft)} içinde başlayacak. (Max ${MAX_PLAYERS})`;
+      `Şuan lobbydesiniz. Oyun ${formatTime(phaseLeft)} içinde başlayacak.`;
   }
 
   if (countdownBig) {
@@ -1058,14 +1060,24 @@ remainingEggs--;
       `⏱️ Oyun ${Math.ceil(phaseLeft)} saniye sonra başlıyor…`;
   }
 
-  // ✅ SADECE SON 5 SANİYE HİKAYE
-if (storyPanel) {
-  storyPanel.style.display = (phaseLeft <= 5) ? "block" : "none";
-}
+  // ✅ ORMAN DİYARI KONTROLÜ
+  if (storyPanel) {
+    if (phaseLeft <= 5 && !storyShown) {
+      storyPanel.style.display = "block";
+      storyShown = true;
+    }
 
+    if (phaseLeft > 5) {
+      storyPanel.style.display = "none";
+      storyShown = false;
+    }
+  }
 
   if (resultOverlay) resultOverlay.style.display = "none";
 }
+
+if (storyPanel) storyPanel.style.display = "none";
+storyShown = false;
 
     else if (phase === PHASE.GAME) {
       if (hudTime) hudTime.textContent = formatTime(phaseLeft);
@@ -1363,6 +1375,8 @@ if (storyPanel) {
     socket.on("tick", totalLeft => {
       setPhaseByTotalTimeLeft(totalLeft);
     });
+	  console.log("🟢 OYUN ONLINE - SOCKET BAĞLANDI");
+
   }
 
   // =========================
@@ -1374,5 +1388,6 @@ if (storyPanel) {
 
   requestAnimationFrame(tick);
 })();
+
 
 
