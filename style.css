@@ -297,7 +297,4 @@ canvas#game { position: fixed; inset: 0; width: 100vw; height: 100vh; display: b
     grid-template-columns: 1fr;
   }
 }
-#storyPanel {
-  display: none !important;
-}
 
