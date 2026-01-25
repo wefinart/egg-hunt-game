@@ -93,7 +93,8 @@
   let zombieWarning = false;
   let extraZombiesAdded = false;
   let zombieWarningTimer = 0;
-
+let remainingEggs = 0;
+	
   const zombies = [];
 
   const STAMINA_MAX = 4000;
@@ -266,20 +267,6 @@
 
         const angle = Math.random() * Math.PI * 2;
         const dist = 500 + Math.random() * 700;
-
-        zombies.push({
-          type: typeKey,
-          x: p.x + Math.cos(angle) * dist,
-          y: p.y + Math.sin(angle) * dist,
-          vx: rand(-1, 1),
-          vy: rand(-1, 1),
-          speed: ZOMBIE_BASE_SPEED * rand(t.speedMin, t.speedMax),
-          size: ZOMBIE_R * t.size,
-          damage: t.damage,
-          color: t.color,
-          hitCD: 0,
-          dirTimer: rand(1, 3)
-        });
       }
     }
   }
@@ -318,6 +305,8 @@
 
     // fallback (senin asıl kodun)
     spawnEggsLocal();
+	  remainingEggs = eggs.filter(e => !e.takenBy).length;
+
   }
 
   function spawnEggsLocal() {
@@ -337,6 +326,8 @@
         takenBy: null
       });
     }
+	  remainingEggs = eggs.length;
+
   }
 
   // =========================
@@ -630,6 +621,7 @@
 
         // local skor hemen artsın (serverdan da gelebilir ama gecikmesin)
         me.eggs += 1;
+remainingEggs--;
 
         break;
       }
@@ -1067,9 +1059,10 @@
   }
 
   // ✅ SADECE SON 5 SANİYE HİKAYE
-  if (phaseLeft <= 5 && storyPanel) {
-    storyPanel.style.display = "block";
-  }
+if (storyPanel) {
+  storyPanel.style.display = (phaseLeft <= 5) ? "block" : "none";
+}
+
 
   if (resultOverlay) resultOverlay.style.display = "none";
 }
@@ -1156,9 +1149,9 @@
     }
 
     if (hudEggs) {
-      const remaining = eggs.filter(e => !e.takenBy).length;
-      hudEggs.textContent = String(remaining);
-    }
+  hudEggs.textContent = String(remainingEggs);
+}
+
 
     // =========================
     // PLAYER LOGIC
@@ -1381,4 +1374,5 @@
 
   requestAnimationFrame(tick);
 })();
+
 
