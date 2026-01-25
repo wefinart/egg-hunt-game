@@ -1363,9 +1363,19 @@ storyShown = false;
     socket.on("playerMoved", p => upsertPlayer(p));
 
     socket.on("eggTaken", ({ eggId, playerId }) => {
-      const e = eggs.find(x => x.id === eggId);
-      if (e) e.takenBy = playerId;
-    });
+  const e = eggs.find(x => x.id === eggId);
+  if (e) e.takenBy = playerId;
+
+  // 🔥 SKORU CLIENT'TA DA ARTIR
+  const p = playersById.get(playerId);
+  if (p) {
+    p.eggs += 1;
+  }
+
+  // 🔥 PANELİ ZORLA YENİDEN ÇİZ
+  renderLeaderboard();
+});
+
 
     socket.on("gameOver", () => {
       phase = PHASE.RESULTS;
@@ -1388,6 +1398,7 @@ storyShown = false;
 
   requestAnimationFrame(tick);
 })();
+
 
 
 
