@@ -1053,8 +1053,8 @@ function tick(now) {
 
     // ===== phase UI (server time)
     // serverTimeLeftTotal azalacak, biz ona göre phaseLeft hesaplıyoruz.
-// ===== PHASE UI (NET VE DÜZGÜN) =====
-// ===== PHASE UI (TEK VE DOĞRU) =====
+
+// ===== PHASE UI (TEK VE TEMİZ) =====
 if (phase === PHASE.LOBBY) {
   if (hudTime) hudTime.textContent = formatTime(phaseLeft);
 
@@ -1068,11 +1068,11 @@ if (phase === PHASE.LOBBY) {
       `⏱️ Oyun ${Math.ceil(phaseLeft)} saniye sonra başlıyor…`;
   }
 
-  renderLobbyList();
-  renderLeaderboard();
-
   if (storyPanel) storyPanel.style.display = "none";
   if (resultOverlay) resultOverlay.style.display = "none";
+
+  renderLobbyList();
+  renderLeaderboard();
 }
 
 else if (phase === PHASE.GAME) {
@@ -1084,25 +1084,24 @@ else if (phase === PHASE.GAME) {
 
   if (countdownBig) countdownBig.textContent = "";
 
-  if (storyPanel) storyPanel.style.display = "none";
+  // ✅ STORY SADECE 1 KERE AÇILSIN
+  if (!storyShown) {
+    if (storyPanel) storyPanel.style.display = "block";
+    storyShown = true;
+  }
+
   if (resultOverlay) resultOverlay.style.display = "none";
 }
 
 else if (phase === PHASE.RESULTS) {
   if (hudTime) hudTime.textContent = "00:00";
   if (countdownBig) countdownBig.textContent = "";
-
   showResults();
 }
 
+
 // 🔒 STORY RESET (HER FRAME, AYRI)
-if (storyPanel) storyPanel.style.display = "none";
-storyShown = false;
 
-
-
-if (storyPanel) storyPanel.style.display = "none";
-storyShown = false;
 
     else if (phase === PHASE.GAME) {
       if (hudTime) hudTime.textContent = formatTime(phaseLeft);
@@ -1416,12 +1415,19 @@ storyShown = false;
   // =========================
   // INIT
   // =========================
-  generateWorldTiles();
-  if (overlay) overlay.style.display = "block";
-  if (storyPanel) storyPanel.style.display = "none";
+  // =========================
+// INIT
+// =========================
+generateWorldTiles();
 
-  requestAnimationFrame(tick);
+storyShown = false;
+if (storyPanel) storyPanel.style.display = "none";
+
+if (overlay) overlay.style.display = "block";
+requestAnimationFrame(tick);
+
 })();
+
 
 
 
