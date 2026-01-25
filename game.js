@@ -1043,12 +1043,6 @@ function tick(now) {
   const dt = Math.min(0.05, (now - lastTime) / 1000);
   lastTime = now;
 
-  // 🔥 CLIENT SIDE COUNTDOWN
-  if (phaseLeft > 0) {
-    phaseLeft -= dt;
-    if (phaseLeft < 0) phaseLeft = 0;
-  }
-
     const me = getMe();
 
     // ===== phase UI (server time)
@@ -1413,6 +1407,7 @@ if (overlay) overlay.style.display = "block";
 requestAnimationFrame(tick);
 
 })();
+
 
 
 
