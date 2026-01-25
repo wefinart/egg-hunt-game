@@ -1054,6 +1054,7 @@ function tick(now) {
     // ===== phase UI (server time)
     // serverTimeLeftTotal azalacak, biz ona göre phaseLeft hesaplıyoruz.
 // ===== PHASE UI (NET VE DÜZGÜN) =====
+// ===== PHASE UI (TEK VE DOĞRU) =====
 if (phase === PHASE.LOBBY) {
   if (hudTime) hudTime.textContent = formatTime(phaseLeft);
 
@@ -1067,10 +1068,10 @@ if (phase === PHASE.LOBBY) {
       `⏱️ Oyun ${Math.ceil(phaseLeft)} saniye sonra başlıyor…`;
   }
 
-  // Lobby UI her frame güncellensin
   renderLobbyList();
   renderLeaderboard();
 
+  if (storyPanel) storyPanel.style.display = "none";
   if (resultOverlay) resultOverlay.style.display = "none";
 }
 
@@ -1094,9 +1095,10 @@ else if (phase === PHASE.RESULTS) {
   showResults();
 }
 
-// STORY PANEL RESET (phase bağımsız, EN SON)
+// 🔒 STORY RESET (HER FRAME, AYRI)
 if (storyPanel) storyPanel.style.display = "none";
 storyShown = false;
+
 
 
 if (storyPanel) storyPanel.style.display = "none";
@@ -1420,6 +1422,7 @@ storyShown = false;
 
   requestAnimationFrame(tick);
 })();
+
 
 
 
