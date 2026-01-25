@@ -1063,12 +1063,12 @@ if (phase === PHASE.LOBBY) {
   // ✅ ORMAN DİYARI KONTROLÜ
   if (storyPanel) {
     if (phaseLeft <= 5 && !storyShown) {
-      storyPanel.style.display = "block";
+     // storyPanel.style.display = "block";
       storyShown = true;
     }
 
     if (phaseLeft > 5) {
-      storyPanel.style.display = "none";
+     // storyPanel.style.display = "none";
       storyShown = false;
     }
   }
@@ -1388,6 +1388,7 @@ storyShown = false;
 
   requestAnimationFrame(tick);
 })();
+
 
 
 
