@@ -1,20 +1,36 @@
 (() => {
-  // =========================
-  // SOCKET SETUP
-  // =========================
-  const ROOM_ID =
-    window.EGG_HUNT_ROOM ||
-    new URLSearchParams(location.search).get("room") ||
-    "oda1";
+	// === WEBSOCKET CLIENT ===
+const WS_PORT = 4001;
+const WS_URL = `ws://${location.hostname}:${WS_PORT}`;
 
-  if (typeof io !== "function") {
-    console.error("socket.io client yok! index.html içine <script src='/socket.io/socket.io.js'></script> ekle.");
+const socket = new WebSocket(WS_URL);
+
+socket.onopen = () => {
+  console.log("🟢 WebSocket connected");
+};
+
+socket.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log("📩 Server:", data);
+
+  if (data.type === "welcome") {
+    window.playerId = data.id;
+    console.log("🆔 Player ID:", data.id);
   }
-  const socket = (typeof io === "function") ? io() : null;
 
-  // =========================
-  // CANVAS
-  // =========================
+  if (data.type === "players") {
+    window.serverPlayers = data.players;
+  }
+};
+
+socket.onclose = () => {
+  console.log("🔴 WebSocket disconnected");
+};
+
+socket.onerror = (err) => {
+  console.error("❌ WebSocket error", err);
+};
+
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
 
@@ -48,66 +64,61 @@
   const joy = document.getElementById("joystick");
   const joyKnob = document.getElementById("joyKnob");
 
-  // =========================
-  // GAME CONFIG (asıl kodu bozmadım)
-  // =========================
+  // ===== GAME CONFIG =====
   // ===== ZOMBIE HOUR CONFIG =====
-  const ZOMBIE_HOUR_START = 240; // 4.dk (GAME içinde)
-  const ZOMBIE_HOUR_END   = 420; // 6.dk (GAME içinde)
+const ZOMBIE_HOUR_START = 240; // 4.dk
+const ZOMBIE_HOUR_END   = 420; // 6.dk
 
-  const ZOMBIE_BASE_SPEED = 320 * 1.15;
-  const ZOMBIE_COUNT_PER_PLAYER = 10;
-  const ZOMBIE_R = 14;
-  const ZOMBIE_HIT_COOLDOWN = 1.2; // saniye
+const ZOMBIE_BASE_SPEED = 320 * 1.15;
+const ZOMBIE_COUNT_PER_PLAYER = 10;
+const ZOMBIE_R = 14;
+const ZOMBIE_HIT_COOLDOWN = 1.2; // saniye
 
-  // ===== ZOMBIE TYPES =====
-  const ZOMBIE_TYPES = {
-    normal: {
-      chance: 0.8,
-      size: 1,
-      speedMin: 1.1,
-      speedMax: 1.3,
-      damage: 1,
-      color: "#5aff5a"
-    },
-    big: {
-      chance: 0.1,
-      size: 1.6,
-      speedMin: 1.1,
-      speedMax: 1.3,
-      damage: 2,
-      color: "#2aff2a"
-    },
-    fast: {
-      chance: 0.1,
-      size: 0.7,
-      speedMin: 1.4,
-      speedMax: 1.6,
-      damage: 1,
-      color: "#00ffff"
-    }
-  };
+// ===== ZOMBIE TYPES =====
+const ZOMBIE_TYPES = {
+  normal: {
+    chance: 0.8,        // %80
+    size: 1,
+    speedMin: 1.1,
+    speedMax: 1.3,
+    damage: 1,
+    color: "#5aff5a"
+  },
+  big: {
+    chance: 0.1,        // %10
+    size: 1.6,
+    speedMin: 1.1,
+    speedMax: 1.3,
+    damage: 2,
+    color: "#2aff2a"
+  },
+  fast: {
+    chance: 0.1,        // %10
+    size: 0.7,
+    speedMin: 1.4,
+    speedMax: 1.6,
+    damage: 1,
+    color: "#00ffff"
+  }
+};
 
   // ===== STAMINA =====
   let isZombieHour = false;
-  let zombieWarning = false;
-  let extraZombiesAdded = false;
-  let zombieWarningTimer = 0;
-	let storyShown = false;
+let zombieWarning = false;
+let extraZombiesAdded = false;
+let zombieWarningTimer = 0;
 
-let remainingEggs = 0;
-	
-  const zombies = [];
 
-  const STAMINA_MAX = 4000;
-  const STAMINA_DRAIN = 180;   // saniyede azalma (hareketliyken)
-  const STAMINA_REGEN = 220;   // saniyede dolma (dururken)
-  const STAMINA_SLOW = 500;    // altı yavaş
+const zombies = [];
+
+const STAMINA_MAX = 4000;
+const STAMINA_DRAIN = 180;   // saniyede azalma (hareketliyken)
+const STAMINA_REGEN = 220;   // saniyede dolma (dururken)
+const STAMINA_SLOW = 500;    // altı yavaş
 
   const MAX_PLAYERS = 20;
-
-  const FOG_START = 0.06;   // oyun başı
-  const FOG_END   = 0.22;   // oyun sonu
+const FOG_START = 0.06;   // oyun başı
+const FOG_END   = 0.22;   // oyun sonu
 
   // Dünya
   const WORLD_W = 80000;
@@ -126,12 +137,10 @@ let remainingEggs = 0;
   const EGG_COUNT = 1000;
   const EGG_RADIUS = 10;
 
-  // Süreler (Senin istediğin: 2dk lobby + 8dk oyun = 10dk)
+  // Süreler
   const LOBBY_SECONDS = 120;
   const GAME_SECONDS = 480;
-
-  // Sonuç bekleme süresi (prod'da 10dk kuralını bozmamak için 0 yaptım)
-  const RESULTS_SECONDS = 0;
+  const RESULTS_SECONDS = 10;
 
   // Hareket
   const PLAYER_SPEED = 320;
@@ -142,35 +151,28 @@ let remainingEggs = 0;
   const CAMERA_Y_OFFSET = 40;
 
   // Ağaç ayarları (deterministik)
-  const TREE_CHANCE = 0.40;
-  const TREE_MIN_R = 12;
-  const TREE_MAX_R = 26;
+  const TREE_CHANCE = 0.40; // ormanda her tile'da ağaç çıkma olasılığı
+  const TREE_MIN_R = 12;     // küçük canopy
+  const TREE_MAX_R = 26;    // büyük canopy
+function getTreeType(tx, ty){
+  const r = rand01Tile(tx, ty, 99);
+  if (r < 0.25) return "pine";   // çam
+  if (r < 0.50) return "oak";    // geniş meşe
+  if (r < 0.75) return "bush";   // çalı
+  return "dead";                 // kuru ağaç
+}
 
-  function getTreeType(tx, ty) {
-    const r = rand01Tile(tx, ty, 99);
-    if (r < 0.25) return "pine";
-    if (r < 0.50) return "oak";
-    if (r < 0.75) return "bush";
-    return "dead";
-  }
+  // Sis / uzaklık
+  const FOG_ALPHA_EDGE = 0.40;  // kenarlarda sis
+  const FOG_ALPHA_FULL = 0.20;  // genel hafif sis
 
-  const FOG_ALPHA_EDGE = 0.40;
-  const FOG_ALPHA_FULL = 0.20;
-
-  // =========================
-  // STATE (MULTI)
-  // =========================
+  // ===== STATE =====
   const PHASE = { LOBBY: "LOBBY", GAME: "GAME", RESULTS: "RESULTS" };
   let phase = PHASE.LOBBY;
+  let phaseLeft = LOBBY_SECONDS;
+  let remainingEggs = EGG_COUNT;
 
-  // Serverdan gelen timeLeft (10 dk toplam => lobby+game)
-  // Biz bunu lobby/game diye böleceğiz
-  let serverTimeLeftTotal = (LOBBY_SECONDS + GAME_SECONDS);
-  let phaseLeft = LOBBY_SECONDS; // UI için
-
-  // =========================
-  // INPUT
-  // =========================
+  // ===== INPUT =====
   const keys = new Set();
   window.addEventListener("keydown", (e) => keys.add(e.key));
   window.addEventListener("keyup", (e) => keys.delete(e.key));
@@ -180,29 +182,22 @@ let remainingEggs = 0;
   let joyDX = 0;
   let joyDY = 0;
 
-  // =========================
-  // PLAYERS (server sync)
-  // =========================
-  let myId = null;
+  // ===== PLAYERS (demo offline) =====
+  const players = [];
+  const myId = "me_" + Math.random().toString(16).slice(2);
 
-  // serverdan gelen oyuncular => array kullanıyoruz çünkü mevcut kod çok kullanıyor
-  const players = []; // {id,nick,avatar,color,x,y,eggs,r,stamina}
-
-  // quick lookup
-  const playersById = new Map();
-
-  // =========================
-  // WORLD DATA
-  // =========================
+  // ===== WORLD DATA =====
   const worldTiles = [];
-  const eggs = []; // {id,x,y,takenBy|null}
 
-  // Effects
+  // ===== Eggs =====
+  const eggs = [];
+
+  // ===== Effects =====
+  // {type:"plus", x,y, text, life, vy}
+  // {type:"particle", x,y, vx,vy, life}
   const effects = [];
 
-  // =========================
-  // UTILS (asıl kod)
-  // =========================
+  // ===== Utils =====
   function avatarColor(i) {
     const hue = (i * 360) / 40;
     return `hsl(${hue} 80% 55%)`;
@@ -229,89 +224,84 @@ let remainingEggs = 0;
   }
 
   function getMe() {
-    if (!myId) return null;
-    return playersById.get(myId) || null;
+    return players.find(p => p.id === myId) || null;
   }
 
   // Deterministik hash (ağaçlar için titremesin)
   function hash2(x, y) {
+    // 32-bit mix
     let n = (x * 374761393) ^ (y * 668265263);
     n = (n ^ (n >>> 13)) * 1274126177;
     n = (n ^ (n >>> 16)) >>> 0;
     return n;
   }
-
   function rand01Tile(x, y, salt = 0) {
     const h = hash2(x + salt * 1013, y - salt * 997);
     return (h % 100000) / 100000;
   }
+  
+  // ===== ZOMBIE TYPE PICKER =====
+function getZombieType() {
+  const r = Math.random();
+  let acc = 0;
 
-  // =========================
-  // ZOMBIE HELPERS (asıl)
-  // =========================
-  function getZombieType() {
-    const r = Math.random();
-    let acc = 0;
-    for (const key in ZOMBIE_TYPES) {
-      acc += ZOMBIE_TYPES[key].chance;
-      if (r <= acc) return key;
-    }
-    return "normal";
+  for (const key in ZOMBIE_TYPES) {
+    acc += ZOMBIE_TYPES[key].chance;
+    if (r <= acc) return key;
   }
+  return "normal";
+}
 
-  function spawnZombies() {
-    zombies.length = 0;
+// ===== ZOMBIE UTILS =====
+function spawnZombies(extraCount = 0) {
+  zombies.length = 0;
 
-    for (const p of players) {
-      for (let i = 0; i < ZOMBIE_COUNT_PER_PLAYER; i++) {
-        const typeKey = getZombieType();
-        const t = ZOMBIE_TYPES[typeKey];
+  for (const p of players) {
+    for (let i = 0; i < ZOMBIE_COUNT_PER_PLAYER; i++) {
 
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 500 + Math.random() * 700;
-      }
+      const typeKey = getZombieType();
+      const t = ZOMBIE_TYPES[typeKey];
+
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 500 + Math.random() * 700; // oyuncudan uzakta doğsun
+
+      zombies.push({
+        type: typeKey,
+        x: p.x + Math.cos(angle) * dist,
+        y: p.y + Math.sin(angle) * dist,
+        vx: rand(-1, 1),
+        vy: rand(-1, 1),
+        speed: ZOMBIE_BASE_SPEED * rand(t.speedMin, t.speedMax),
+        size: ZOMBIE_R * t.size,
+        damage: t.damage,
+        color: t.color,
+        hitCD: 0,
+        dirTimer: rand(1, 3)
+      });
+
     }
   }
+}
 
-  // =========================
-  // WORLD GEN (asıl)
-  // =========================
+
+
+  // ===== Generate world tiles =====
   function generateWorldTiles() {
     worldTiles.length = 0;
     for (let y = 0; y < WORLD_ROWS; y++) {
       const row = [];
       for (let x = 0; x < WORLD_COLS; x++) {
         const r = Math.random();
-        if (r < 0.20) row.push(TILE_PATH);
-        else if (r < 0.35) row.push(TILE_CLEAR);
+       if (r < 0.20) row.push(TILE_PATH);       // %12 yol
+else if (r < 0.35) row.push(TILE_CLEAR);
         else row.push(TILE_FOREST);
       }
       worldTiles.push(row);
     }
   }
 
-  // eggleri server gönderiyorsa onu kullan, yoksa (fallback) local üret
-  function applyServerEggs(serverEggs) {
-    eggs.length = 0;
-    if (Array.isArray(serverEggs) && serverEggs.length > 0) {
-      for (const e of serverEggs) {
-        eggs.push({
-          id: e.id,
-          x: e.x,
-          y: e.y,
-          takenBy: e.taken ? "someone" : null
-        });
-      }
-      return;
-    }
-
-    // fallback (senin asıl kodun)
-    spawnEggsLocal();
-	  remainingEggs = eggs.filter(e => !e.takenBy).length;
-
-  }
-
-  function spawnEggsLocal() {
+  // ===== Spawn eggs =====
+  function spawnEggs() {
     eggs.length = 0;
 
     for (let i = 0; i < EGG_COUNT; i++) {
@@ -322,19 +312,16 @@ let remainingEggs = 0;
       } while (worldTiles[ty]?.[tx] !== TILE_FOREST);
 
       eggs.push({
-        id: i,
         x: tx * TILE_SIZE + TILE_SIZE / 2,
         y: ty * TILE_SIZE + TILE_SIZE / 2,
-        takenBy: null
+        takenBy: null,
       });
     }
-	  remainingEggs = eggs.length;
 
+    remainingEggs = EGG_COUNT;
   }
 
-  // =========================
-  // RESIZE / ROTATE
-  // =========================
+  // ===== Resize =====
   function resize() {
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     canvas.width = Math.floor(window.innerWidth * dpr);
@@ -344,6 +331,7 @@ let remainingEggs = 0;
   window.addEventListener("resize", resize);
   resize();
 
+  // ===== Rotate check =====
   function checkRotateOverlay() {
     const isMobile = matchMedia("(max-width: 900px)").matches;
     const isPortrait = window.innerHeight > window.innerWidth;
@@ -352,9 +340,7 @@ let remainingEggs = 0;
   window.addEventListener("resize", checkRotateOverlay);
   checkRotateOverlay();
 
-  // =========================
-  // AVATAR UI (asıl)
-  // =========================
+  // ===== Avatar grid =====
   const AVATARS = Array.from({ length: 40 }, (_, i) => i);
   let selectedAvatar = 0;
 
@@ -377,91 +363,47 @@ let remainingEggs = 0;
     errEl.textContent = msg || "";
   }
 
-  // =========================
-  // SERVER SYNC HELPERS
-  // =========================
-  function upsertPlayer(p) {
-    let existing = playersById.get(p.id);
-    if (!existing) {
-      existing = {
-        id: p.id,
-        nick: p.nick || "Player",
-        avatar: typeof p.avatar === "number" ? p.avatar : 0,
-        color: avatarColor(typeof p.avatar === "number" ? p.avatar : 0),
-        x: p.x ?? (WORLD_W / 2),
-        y: p.y ?? (WORLD_H / 2),
-        eggs: p.eggs ?? 0,
-        r: PLAYER_R,
-        stamina: STAMINA_MAX
-      };
-      players.push(existing);
-      playersById.set(existing.id, existing);
-    } else {
-      existing.nick = p.nick ?? existing.nick;
-      existing.avatar = (typeof p.avatar === "number") ? p.avatar : existing.avatar;
-      existing.color = avatarColor(existing.avatar);
-      if (typeof p.x === "number") existing.x = p.x;
-      if (typeof p.y === "number") existing.y = p.y;
-      if (typeof p.eggs === "number") existing.eggs = p.eggs;
-    }
-    return existing;
-  }
-
-  function removePlayer(id) {
-    const p = playersById.get(id);
-    if (!p) return;
-    playersById.delete(id);
-    const idx = players.findIndex(x => x.id === id);
-    if (idx >= 0) players.splice(idx, 1);
-  }
-
-  function setPhaseByTotalTimeLeft(totalLeft) {
-    // totalLeft = 600..0
-    serverTimeLeftTotal = Math.max(0, Math.floor(totalLeft));
-
-    if (serverTimeLeftTotal > GAME_SECONDS) {
-      // lobby
-      phase = PHASE.LOBBY;
-      phaseLeft = serverTimeLeftTotal - GAME_SECONDS; // 120..1
-    } else if (serverTimeLeftTotal > 0) {
-      phase = PHASE.GAME;
-      phaseLeft = serverTimeLeftTotal; // 480..1
-    } else {
-      phase = PHASE.RESULTS;
-      phaseLeft = 0;
-    }
-
-    if (phaseText) phaseText.textContent = phase === PHASE.LOBBY ? "LOBBY" : (phase === PHASE.GAME ? "OYUN" : "SONUÇ");
-  }
-
-  // =========================
-  // JOIN (MULTI)
-  // =========================
+  // ===== Join lobby =====
   function joinLobby() {
     const nick = (nickInput?.value || "").trim();
     if (!nick) return showErr("Nick boş olamaz.");
     if (nick.length > 20) return showErr("Nick max 20 karakter.");
     showErr("");
 
-    if (!socket) return showErr("Socket yok. index.html içine socket.io scripti ekli mi?");
+    if (players.length >= MAX_PLAYERS) {
+      return showErr("Server dolu (max 20).");
+    }
 
-    socket.emit("joinRoom", {
-      roomId: ROOM_ID,
+    const me = {
+      id: myId,
       nick,
-      avatar: selectedAvatar
-    });
+      avatar: selectedAvatar,
+      color: avatarColor(selectedAvatar),
+      x: WORLD_W / 2,
+      y: WORLD_H / 2,
+      eggs: 0,
+      r: PLAYER_R,
+	  stamina: STAMINA_MAX,
+    };
+    players.push(me);
+
+    if (overlay) overlay.style.display = "none";
 
     // mobil joystick göster
     const isTouch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
     if (isTouch && joy) joy.style.display = "block";
+
+    // Nick girince story aç + Lobby phase başlat
+    setPhase(PHASE.LOBBY);
+
+    renderLobbyList();
+    renderLeaderboard();
   }
 
   if (nickInput) nickInput.addEventListener("keydown", (e) => { if (e.key === "Enter") joinLobby(); });
   if (startBtn) startBtn.addEventListener("click", joinLobby);
 
-  // =========================
-  // LOBBY LIST / LEADERBOARD (asıl)
-  // =========================
+  // ===== Lobby list =====
   function renderLobbyList() {
     if (!lobbyListEl) return;
     lobbyListEl.innerHTML = "";
@@ -477,6 +419,7 @@ let remainingEggs = 0;
     });
   }
 
+  // ===== Leaderboard =====
   function renderLeaderboard() {
     if (!leaderboardEl) return;
     leaderboardEl.innerHTML = "";
@@ -489,6 +432,7 @@ let remainingEggs = 0;
       const row = document.createElement("div");
       row.className = "lbItem";
 
+      // rank class (CSS: .rank1 .rank2 .rank3)
       if (idx === 0) row.classList.add("rank1");
       else if (idx === 1) row.classList.add("rank2");
       else if (idx === 2) row.classList.add("rank3");
@@ -512,9 +456,54 @@ let remainingEggs = 0;
     if (myEggsEl) myEggsEl.textContent = me ? String(me.eggs) : "0";
   }
 
-  // =========================
-  // PHASE UI (asıl)
-  // =========================
+  // ===== Phase management =====
+  function setPhase(newPhase) {
+    phase = newPhase;
+
+    if (phase === PHASE.LOBBY) {
+      phaseLeft = LOBBY_SECONDS;
+      if (phaseText) phaseText.textContent = "LOBBY";
+
+      if (lobbyInfoEl) lobbyInfoEl.textContent = "Şuan lobbydesiniz. Oyun birazdan başlayacak.";
+
+      // Nick girince story aç (LOBBY'de)
+      if (storyPanel) storyPanel.style.display = "block";
+
+      // sonuç ekranı kapalı
+      if (resultOverlay) resultOverlay.style.display = "none";
+
+      // yumurtaları resetle
+      spawnEggs();
+      players.forEach(p => { p.eggs = 0; });
+
+      effects.length = 0;
+
+      renderLobbyList();
+      renderLeaderboard();
+    }
+
+    if (phase === PHASE.GAME) {
+      phaseLeft = GAME_SECONDS;
+      if (phaseText) phaseText.textContent = "OYUN";
+
+      if (lobbyInfoEl) lobbyInfoEl.textContent = "Oyun başladı! 8 dakika içinde yumurtaları topla.";
+
+      // Oyun başlayınca story kapanır
+      if (storyPanel) storyPanel.style.display = "none";
+
+      if (resultOverlay) resultOverlay.style.display = "none";
+    }
+
+    if (phase === PHASE.RESULTS) {
+      phaseLeft = RESULTS_SECONDS;
+      if (phaseText) phaseText.textContent = "SONUÇ";
+
+      if (storyPanel) storyPanel.style.display = "none";
+
+      showResults();
+    }
+  }
+
   function showResults() {
     if (!resultOverlay) return;
     resultOverlay.style.display = "grid";
@@ -529,7 +518,7 @@ let remainingEggs = 0;
 
     if (resultTitle) resultTitle.textContent = "ROUND BİTTİ 🏁";
 
-    let msg = "Yeni oyun başlıyor…";
+    let msg = "Yeni oyun 10 saniye içinde başlayacak…";
     if (myRank === 1) msg = "🥇 Efsanesin! Bu round’un kazananı sensin!";
     else if (myRank === 2 || myRank === 3) msg = "🔥 Harikaydı! Az farkla kaçırdın!";
     else if (myRank >= 4 && myRank <= 10) msg = "💪 İyi yarıştın! Devam!";
@@ -552,12 +541,10 @@ let remainingEggs = 0;
       });
     }
 
-    if (resultCountdown) resultCountdown.textContent = "0";
+    if (resultCountdown) resultCountdown.textContent = String(RESULTS_SECONDS);
   }
 
-  // =========================
-  // MOVEMENT (asıl + send)
-  // =========================
+  // ===== Movement =====
   function getMoveVector() {
     let vx = 0, vy = 0;
 
@@ -573,27 +560,26 @@ let remainingEggs = 0;
       const len = Math.hypot(vx, vy);
       vx /= len; vy /= len;
     }
-    return { vx, vy, moving: (vx !== 0 || vy !== 0) };
-  }
+	return { vx, vy, moving: (vx !== 0 || vy !== 0) };
 
-  function getPlayerSpeed(me) {
-    if (me.stamina <= 0) return 0;
-    if (me.stamina < STAMINA_SLOW) return PLAYER_SPEED * 0.5;
-    return PLAYER_SPEED;
   }
+function getPlayerSpeed(me){
+  if (me.stamina <= 0) return 0;              // bitince dur
+  if (me.stamina < STAMINA_SLOW) return PLAYER_SPEED * 0.5; // yavaş yürüme
+  return PLAYER_SPEED;                        // normal koşu
+}
 
-  // =========================
-  // EGG PICKUP (asıl + socket)
-  // =========================
+  // ===== Egg pickup =====
   function tryPickupEggs(me) {
     for (const e of eggs) {
       if (e.takenBy) continue;
 
       if (dist2(me.x, me.y, e.x, e.y) < (me.r + EGG_RADIUS) ** 2) {
-        // OPTIMISTIC: hemen localde işaretle (çakışma azalır)
         e.takenBy = me.id;
+        me.eggs += 1;
+        remainingEggs -= 1;
 
-        // +1 yazısı
+        // +1 yazısı (yukarı çıkar)
         effects.push({
           type: "plus",
           x: me.x,
@@ -603,6 +589,7 @@ let remainingEggs = 0;
           vy: -34,
         });
 
+        // patlama partikül
         for (let i = 0; i < 10; i++) {
           const ang = Math.random() * Math.PI * 2;
           const sp = 90 + Math.random() * 150;
@@ -615,24 +602,11 @@ let remainingEggs = 0;
             life: 0.55 + Math.random() * 0.25,
           });
         }
-
-        // servera bildir
-        if (socket && myId) {
-          socket.emit("pickupEgg", { roomId: ROOM_ID, eggId: e.id });
-        }
-
-        // local skor hemen artsın (serverdan da gelebilir ama gecikmesin)
-  
-remainingEggs--;
-
-        break;
       }
     }
   }
 
-  // =========================
-  // CAMERA
-  // =========================
+  // ===== Camera calc =====
   function computeCamera(me, zoom) {
     const viewW = window.innerWidth;
     const viewH = window.innerHeight;
@@ -645,9 +619,7 @@ remainingEggs--;
     return { camX, camY };
   }
 
-  // =========================
-  // JOYSTICK (asıl)
-  // =========================
+  // ===== Joystick =====
   function setupJoystick() {
     if (!joy || !joyKnob) return;
 
@@ -700,36 +672,40 @@ remainingEggs--;
   }
   setupJoystick();
 
-  // =========================
-  // DRAW HELPERS (asıl)
-  // =========================
-  function drawStaminaBar(me) {
-    if (!me) return;
+  /* ===========================================================
+     DRAW HELPERS: Tree / Fog / Egg glow under tree
+  =========================================================== */
+function drawStaminaBar(me){
+  if(!me) return;
 
-    const x = 12;
-    const y = 120;
-    const w = 140;
-    const h = 10;
+  const x = 12;
+  const y = 120;
+  const w = 140;
+  const h = 10;
 
-    const ratio = me.stamina / STAMINA_MAX;
+  const ratio = me.stamina / STAMINA_MAX;
 
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(x, y, w, h);
+  // arka
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(x, y, w, h);
 
-    ctx.fillStyle = ratio < 0.5 ? "#4fa3ff" : "#6bd1ff";
-    ctx.fillRect(x, y, w * ratio, h);
+  // bar rengi
+  ctx.fillStyle = ratio < 0.5 ? "#4fa3ff" : "#6bd1ff";
+  ctx.fillRect(x, y, w * ratio, h);
 
-    ctx.strokeStyle = "rgba(255,255,255,0.4)";
-    ctx.strokeRect(x, y, w, h);
+  // çerçeve
+  ctx.strokeStyle = "rgba(255,255,255,0.4)";
+  ctx.strokeRect(x, y, w, h);
 
-    ctx.fillStyle = "#fff";
-    ctx.font = "11px monospace";
-    ctx.fillText(
-      `${Math.floor(me.stamina)}/${STAMINA_MAX}`,
-      x,
-      y - 4
-    );
-  }
+  // yazı
+  ctx.fillStyle = "#fff";
+  ctx.font = "11px monospace";
+  ctx.fillText(
+    `${Math.floor(me.stamina)}/${STAMINA_MAX}`,
+    x,
+    y - 4
+  );
+}
 
   function tileHasTree(tx, ty) {
     if (worldTiles[ty]?.[tx] !== TILE_FOREST) return false;
@@ -738,125 +714,140 @@ remainingEggs--;
   }
 
   function getTreeSpec(tx, ty) {
+    // deterministik özellikler
     const r1 = rand01Tile(tx, ty, 2);
     const r2 = rand01Tile(tx, ty, 3);
     const r3 = rand01Tile(tx, ty, 4);
 
-    const size = (TREE_MIN_R + (TREE_MAX_R - TREE_MIN_R) * r1);
-    const ox = (r2 - 0.5) * 10;
+    const size = (TREE_MIN_R + (TREE_MAX_R - TREE_MIN_R) * r1); // canopy radius
+    const ox = (r2 - 0.5) * 10; // küçük offset
     const oy = (r3 - 0.5) * 10;
 
     const cx = tx * TILE_SIZE + TILE_SIZE / 2 + ox;
     const cy = ty * TILE_SIZE + TILE_SIZE / 2 + oy;
 
+    // baseY: gövde altı (derinlik için)
     const baseY = cy + 10 + size * 0.25;
 
     return {
-      cx,
-      cy,
-      baseY,
-      size,
-      type: getTreeType(tx, ty)
-    };
+  cx,
+  cy,
+  baseY,
+  size,
+  type: getTreeType(tx, ty)
+};
+
   }
 
-  function drawTree(tree, camX, camY, zoom) {
-    const sx = (tree.cx - camX) * zoom;
-    const sy = (tree.cy - camY) * zoom;
-    const size = tree.size * zoom;
-    const type = tree.type;
+function drawTree(tree, camX, camY, zoom){
+  const sx = (tree.cx - camX) * zoom;
+  const sy = (tree.cy - camY) * zoom;
+  const size = tree.size * zoom;
+  const type = tree.type;
 
-    // gölge
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
+  // yumuşak gölge
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.beginPath();
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+ctx.beginPath();
+ctx.ellipse(
+  sx + size*0.15,
+  sy + size*1.2,
+  size*1.1,
+  size*0.45,
+  0,
+  0,
+  Math.PI*2
+);
+ctx.fill();
+
+  // gövde
+
+  const trunkH = size * 1.2;
+const trunkW = size * 0.25;
+
+ctx.fillStyle = type === "dead" ? "#3b2a1a" : "#6b4f35";
+ctx.fillRect(
+  sx - (trunkW/2),
+  sy + size*0.4,
+  trunkW,
+  trunkH
+);
+
+
+  // yaprak / form
+  if(type === "pine"){ // çam
+    ctx.fillStyle = "#1d6b3a";
     ctx.beginPath();
-    ctx.ellipse(
-      sx + size*0.15,
-      sy + size*1.2,
-      size*1.1,
-      size*0.45,
-      0,
-      0,
-      Math.PI*2
-    );
+    ctx.moveTo(sx, sy-size);
+    ctx.lineTo(sx-size, sy+size);
+    ctx.lineTo(sx+size, sy+size);
     ctx.fill();
-
-    // gövde
-    const trunkH = size * 1.2;
-    const trunkW = size * 0.25;
-
-    ctx.fillStyle = type === "dead" ? "#3b2a1a" : "#6b4f35";
-    ctx.fillRect(
-      sx - (trunkW/2),
-      sy + size*0.4,
-      trunkW,
-      trunkH
-    );
-
-    // yaprak
-    if (type === "pine") {
-      ctx.fillStyle = "#1d6b3a";
-      ctx.beginPath();
-      ctx.moveTo(sx, sy-size);
-      ctx.lineTo(sx-size, sy+size);
-      ctx.lineTo(sx+size, sy+size);
-      ctx.fill();
-    }
-    else if (type === "oak") {
-      ctx.fillStyle = "#2e7a4a";
-      ctx.beginPath();
-      ctx.arc(sx, sy - size*0.2, size, 0, Math.PI*2);
-      ctx.fill();
-    }
-    else if (type === "bush") {
-      ctx.fillStyle = "#3a8b55";
-      ctx.beginPath();
-      ctx.arc(sx, sy, size*0.6, 0, Math.PI*2);
-      ctx.fill();
-    }
-    else if (type === "dead") {
-      ctx.strokeStyle = "#6b4f35";
-      ctx.lineWidth = 3 * zoom;
-    }
   }
+  else if(type === "oak"){ // meşe
+    ctx.fillStyle = "#2e7a4a";
+    ctx.beginPath();
+   ctx.arc(sx, sy - size*0.2, size, 0, Math.PI*2);
+    ctx.fill();
+  }
+  else if(type === "bush"){ // çalı
+    ctx.fillStyle = "#3a8b55";
+    ctx.beginPath();
+    ctx.arc(sx, sy, size*0.6, 0, Math.PI*2);
+    ctx.fill();
+  }
+  else if(type === "dead"){ // kuru
+   ctx.strokeStyle = "#6b4f35";
+  ctx.lineWidth = 3 * zoom;
+  }
+}
 
+
+  // yumurta "ağaç altı" parlaması: aynı tile'da ağaç varsa glow yükselir
   function eggGlowBoost(e) {
     const tx = Math.floor(e.x / TILE_SIZE);
     const ty = Math.floor(e.y / TILE_SIZE);
     if (!tileHasTree(tx, ty)) return 0;
     const t = getTreeSpec(tx, ty);
 
+    // yumurta ağaca yakınsa daha çok parlatsın
     const d = Math.hypot(e.x - t.cx, e.y - t.cy);
     const max = TILE_SIZE * 0.75;
     const k = clamp(1 - (d / max), 0, 1);
-    return 0.5 * k + 0.25;
+    return 0.5 * k + 0.25; // 0..0.75
   }
 
-  function drawFogOverlay() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+  // Fog overlay (uzaklık + sis)
+  function drawFogOverlay(){
+  const w = window.innerWidth;
+  const h = window.innerHeight;
 
-    // progress sadece GAME içinde anlamlı
-    const progress = (phase === PHASE.GAME) ? (1 - (phaseLeft / GAME_SECONDS)) : 0;
-    const fogAlpha = FOG_START + (FOG_END - FOG_START) * clamp(progress, 0, 1);
+  const progress = 1 - (phaseLeft / GAME_SECONDS);
+  const fogAlpha = FOG_START + (FOG_END - FOG_START) * clamp(progress, 0, 1);
 
-    ctx.fillStyle = `rgba(10,15,12,${fogAlpha})`;
-    ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = `rgba(10,15,12,${fogAlpha})`;
+  ctx.fillRect(0, 0, w, h);
 
-    const g = ctx.createRadialGradient(
-      w * 0.5, h * 0.5, Math.min(w, h) * 0.2,
-      w * 0.5, h * 0.5, Math.max(w, h) * 0.7
-    );
-    g.addColorStop(0, "rgba(0,0,0,0)");
-    g.addColorStop(1, `rgba(0,0,0,${fogAlpha + 0.12})`);
+  const g = ctx.createRadialGradient(
+    w * 0.5, h * 0.5, Math.min(w, h) * 0.2,
+    w * 0.5, h * 0.5, Math.max(w, h) * 0.7
+  );
+  g.addColorStop(0, "rgba(0,0,0,0)");
+  g.addColorStop(1, `rgba(0,0,0,${fogAlpha + 0.12})`);
 
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+  if (isZombieHour) {
+  ctx.fillStyle = "rgba(0,0,0,0.35)";
+  ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+}
 
-    if (isZombieHour) {
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
-      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-    }
-  }
+}
+
+
+  /* ===========================================================
+     DRAW WORLD BACKGROUND + CREATE DRAWABLES (Y-sort depth)
+  =========================================================== */
 
   function drawWorldGround(camX, camY, zoom) {
     const viewW = window.innerWidth;
@@ -877,61 +868,85 @@ remainingEggs--;
         const sy = (y * TILE_SIZE - camY) * zoom;
 
         if (tile === TILE_FOREST) {
-          const distY = Math.abs((y * TILE_SIZE) - camY);
-          const depth = clamp(distY / 3000, 0, 1);
+const distY = Math.abs((y * TILE_SIZE) - camY);
+const depth = clamp(distY / 3000, 0, 1);
 
-          const forestNear = [31, 90, 50];
-          const forestFar  = [20, 60, 40];
+// yakın → sıcak yeşil
+// uzak → soğuk koyu yeşil
+const forestNear = [31, 90, 50];
+const forestFar  = [20, 60, 40];
 
-          const rr = Math.floor(forestNear[0] * (1 - depth) + forestFar[0] * depth);
-          const gg = Math.floor(forestNear[1] * (1 - depth) + forestFar[1] * depth);
-          const bb = Math.floor(forestNear[2] * (1 - depth) + forestFar[2] * depth);
+const r = Math.floor(forestNear[0] * (1 - depth) + forestFar[0] * depth);
+const g = Math.floor(forestNear[1] * (1 - depth) + forestFar[1] * depth);
+const b = Math.floor(forestNear[2] * (1 - depth) + forestFar[2] * depth);
 
-          ctx.fillStyle = `rgb(${rr},${gg},${bb})`;
-          ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
+ctx.fillStyle = `rgb(${r},${g},${b})`;
+ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
 
+          // küçük detay
           ctx.fillStyle = "rgba(80,255,170,0.06)";
-          const r2 = rand01Tile(x, y, 10);
-          if (r2 < 0.35) {
+          const rr = rand01Tile(x, y, 10);
+          if (rr < 0.35) {
             ctx.fillRect(sx + 6 * zoom, sy + 6 * zoom, 3 * zoom, 3 * zoom);
           }
+
         } else if (tile === TILE_CLEAR) {
           ctx.fillStyle = "#355f3b";
           ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
-        } else if (tile === TILE_PATH) {
-          ctx.fillStyle = "#6b4b2a";
-          ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
 
-          const n = rand01Tile(x, y, 77);
-
-          if (n < 0.35) {
-            ctx.fillStyle = "rgba(0,0,0,0.12)";
-            ctx.fillRect(sx + 4 * zoom, sy + 6 * zoom, 4 * zoom, 2 * zoom);
-          }
-
-          if (n > 0.6) {
-            ctx.fillStyle = "rgba(255,230,180,0.08)";
-            ctx.fillRect(sx + 10 * zoom, sy + 12 * zoom, 3 * zoom, 3 * zoom);
-          }
         }
+else if (tile === TILE_PATH) {
+
+  // ana yol rengi
+  ctx.fillStyle = "#6b4b2a";
+  ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
+
+  // ---- noise / texture ----
+  const n = rand01Tile(x, y, 77);
+
+  // küçük koyu lekeler (taş/toprak)
+  if (n < 0.35) {
+    ctx.fillStyle = "rgba(0,0,0,0.12)";
+    ctx.fillRect(
+      sx + 4 * zoom,
+      sy + 6 * zoom,
+      4 * zoom,
+      2 * zoom
+    );
+  }
+
+  // açık renk kum hissi
+  if (n > 0.6) {
+    ctx.fillStyle = "rgba(255,230,180,0.08)";
+    ctx.fillRect(
+      sx + 10 * zoom,
+      sy + 12 * zoom,
+      3 * zoom,
+      3 * zoom
+    );
+  }
+}
+
       }
     }
   }
 
-  function drawEgg(e, camX, camY, zoom) {
-    const sx = (e.x - camX) * zoom;
-    const sy = (e.y - camY) * zoom;
+function drawEgg(e, camX, camY, zoom) {
+  const sx = (e.x - camX) * zoom;
+  const sy = (e.y - camY) * zoom;
 
-    const glow = eggGlowBoost(e);
-    if (glow > 0) {
-      ctx.save();
-      ctx.globalAlpha = glow;
-      ctx.fillStyle = "rgba(255,220,120,0.85)";
-      ctx.beginPath();
-      ctx.arc(sx, sy + 6*zoom, 14*zoom, 0, Math.PI*2);
-      ctx.fill();
-      ctx.restore();
-    }
+  const glow = eggGlowBoost(e);
+  if (glow > 0){
+    ctx.save();
+    ctx.globalAlpha = glow;
+    ctx.fillStyle = "rgba(255,220,120,0.85)";
+    ctx.beginPath();
+    ctx.arc(sx, sy + 6*zoom, 14*zoom, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // (devamı aynı kalabilir)
 
     const boost = eggGlowBoost(e);
     if (boost > 0) {
@@ -946,6 +961,7 @@ remainingEggs--;
       ctx.restore();
     }
 
+    // normal yumurta
     ctx.beginPath();
     ctx.fillStyle = "#f4e7c6";
     ctx.ellipse(sx, sy, EGG_RADIUS * zoom, EGG_RADIUS * 1.25 * zoom, 0, 0, Math.PI * 2);
@@ -968,11 +984,13 @@ remainingEggs--;
     ctx.save();
     ctx.globalAlpha = alpha;
 
+    // gölge
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.beginPath();
     ctx.ellipse(sx, sy + 12 * zoom, 14 * zoom, 6 * zoom, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    // body
     ctx.fillStyle = p.color;
     ctx.beginPath();
     ctx.arc(sx, sy, p.r * zoom, 0, Math.PI * 2);
@@ -982,6 +1000,7 @@ remainingEggs--;
     ctx.lineWidth = 2;
     ctx.stroke();
 
+    // nick
     ctx.font = `${Math.max(10, 12 * zoom)}px monospace`;
     ctx.fillStyle = "#fff";
     ctx.textAlign = "center";
@@ -991,6 +1010,7 @@ remainingEggs--;
   }
 
   function findNearbyTreeForPlayer(p) {
+    // sadece 3x3 tile bak (performans için)
     const tx = Math.floor(p.x / TILE_SIZE);
     const ty = Math.floor(p.y / TILE_SIZE);
 
@@ -1005,6 +1025,7 @@ remainingEggs--;
 
         const t = getTreeSpec(xx, yy);
         const d = Math.hypot(p.x - t.cx, p.y - t.cy);
+        // trunk/canopy yakınlığı
         const thresh = t.size + 18;
         if (d < thresh && d < bestD) {
           bestD = d;
@@ -1015,250 +1036,219 @@ remainingEggs--;
     return best;
   }
 
-  // =========================
-  // NETWORK THROTTLE (move)
-  // =========================
-  let lastNetSend = 0;
-
-  function sendMyMoveThrottled(nowMs, me) {
-    if (!socket || !myId) return;
-    if (!me) return;
-    // 15hz gönder
-    if (nowMs - lastNetSend < 66) return;
-    lastNetSend = nowMs;
-
-    socket.emit("move", {
-      roomId: ROOM_ID,
-      x: me.x,
-      y: me.y
-    });
-  }
-
-  // =========================
-  // MAIN LOOP
-  // =========================
+  // ===== MAIN LOOP =====
   let lastTime = performance.now();
 
-function tick(now) {
-  const dt = Math.min(0.05, (now - lastTime) / 1000);
-  lastTime = now;
+  function tick(now) {
+    const dt = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
 
     const me = getMe();
 
-    // ===== phase UI (server time)
-    // serverTimeLeftTotal azalacak, biz ona göre phaseLeft hesaplıyoruz.
+    // Phase timer (oyuncu join olduktan sonra akar)
+    if (players.length > 0) {
+      phaseLeft -= dt;
+      if (phaseLeft <= 0) {
+        if (phase === PHASE.LOBBY) setPhase(PHASE.GAME);
+        else if (phase === PHASE.GAME) setPhase(PHASE.RESULTS);
+        else if (phase === PHASE.RESULTS) setPhase(PHASE.LOBBY);
+      }
+    }
+// ===== ZOMBIE HOUR CHECK =====
+if (phase === PHASE.GAME) {
+  const elapsed = GAME_SECONDS - phaseLeft;
 
-// ===== PHASE UI (TEK VE TEMİZ) =====
-if (phase === PHASE.LOBBY) {
-  if (hudTime) hudTime.textContent = formatTime(phaseLeft);
-
-  if (lobbyInfoEl) {
-    lobbyInfoEl.textContent =
-      `Şuan lobbydesiniz. Oyun ${formatTime(phaseLeft)} içinde başlayacak.`;
+  // ⚠️ 3 sn önce uyarı
+  if (
+    elapsed > ZOMBIE_HOUR_START - 3 &&
+    elapsed < ZOMBIE_HOUR_START &&
+    !zombieWarning
+  ) {
+    zombieWarning = true;
+    zombieWarningTimer = 3;
   }
+
+  // 🧟 4.dk → Zombie Hour başlar (200)
+  if (elapsed >= ZOMBIE_HOUR_START && !isZombieHour) {
+    isZombieHour = true;
+    spawnZombies(); // mevcut hesap: players * count
+  }
+
+  // 🔥 5.dk → +200 zombi
+  if (elapsed >= 300 && isZombieHour && !extraZombiesAdded) {
+   for (const p of players) {
+  for (let i = 0; i < 200 / players.length; i++) {
+
+    const typeKey = getZombieType();
+    const t = ZOMBIE_TYPES[typeKey];
+
+    const ang = Math.random() * Math.PI * 2;
+    const d = 600 + Math.random() * 800;
+
+    zombies.push({
+      type: typeKey,
+      x: p.x + Math.cos(ang) * d,
+      y: p.y + Math.sin(ang) * d,
+      vx: rand(-1,1),
+      vy: rand(-1,1),
+      speed: ZOMBIE_BASE_SPEED * rand(t.speedMin, t.speedMax),
+      size: ZOMBIE_R * t.size,
+      damage: t.damage,
+      color: t.color,
+      hitCD: 0,
+      dirTimer: rand(1,3)
+    });
+  }
+}
+extraZombiesAdded = true;
+
+  }
+
+  // ⏹️ 6.dk → her şey biter
+  if (elapsed > ZOMBIE_HOUR_END && isZombieHour) {
+    isZombieHour = false;
+    zombieWarning = false;
+    extraZombiesAdded = false;
+    zombies.length = 0;
+  }
+}
+
+    // ===== UI time / countdownBig =====
+	if (zombieWarning) {
+  zombieWarningTimer -= dt;
 
   if (countdownBig) {
     countdownBig.textContent =
-      `⏱️ Oyun ${Math.ceil(phaseLeft)} saniye sonra başlıyor…`;
+      `⚠️ ZOMBİ SAATİ ${Math.ceil(zombieWarningTimer)} SANİYE SONRA`;
   }
 
-  if (storyPanel) storyPanel.style.display = "none";
-  if (resultOverlay) resultOverlay.style.display = "none";
-
-  renderLobbyList();
-  renderLeaderboard();
-}
-
-else if (phase === PHASE.GAME) {
-  if (hudTime) hudTime.textContent = formatTime(phaseLeft);
-
-  if (lobbyInfoEl) {
-    lobbyInfoEl.textContent = "Oyun başladı! Yumurtaları topla.";
+  if (zombieWarningTimer <= 0) {
+    zombieWarning = false;
+    if (countdownBig) countdownBig.textContent = "";
   }
-
-  if (countdownBig) countdownBig.textContent = "";
-
-  // ✅ STORY SADECE 1 KERE AÇILSIN
-  if (!storyShown) {
-    if (storyPanel) storyPanel.style.display = "block";
-    storyShown = true;
-  }
-
-  if (resultOverlay) resultOverlay.style.display = "none";
 }
 
-else if (phase === PHASE.RESULTS) {
-  if (hudTime) hudTime.textContent = "00:00";
-  if (countdownBig) countdownBig.textContent = "";
-  showResults();
-}
+    if (phase === PHASE.LOBBY) {
+      if (hudTime) hudTime.textContent = formatTime(phaseLeft);
 
-
-// 🔒 STORY RESET (HER FRAME, AYRI)
-
-
-    // ===== Zombie warning + zombie hour (asıl mantık)
-    if (phase === PHASE.GAME) {
-      const elapsed = GAME_SECONDS - phaseLeft;
-
-      if (
-        elapsed > ZOMBIE_HOUR_START - 3 &&
-        elapsed < ZOMBIE_HOUR_START &&
-        !zombieWarning
-      ) {
-        zombieWarning = true;
-        zombieWarningTimer = 3;
+      if (lobbyInfoEl) {
+        lobbyInfoEl.textContent = `Şuan lobbydesiniz. Oyun ${formatTime(phaseLeft)} içinde başlayacak. (Max ${MAX_PLAYERS})`;
       }
 
-      if (elapsed >= ZOMBIE_HOUR_START && !isZombieHour) {
-        isZombieHour = true;
-        spawnZombies();
-      }
-
-      // +200 zombi (son 1 dk öncesi gibi)
-      if (elapsed >= 300 && isZombieHour && !extraZombiesAdded) {
-        for (const p of players) {
-          for (let i = 0; i < 200 / Math.max(1, players.length); i++) {
-            const typeKey = getZombieType();
-            const t = ZOMBIE_TYPES[typeKey];
-
-            const ang = Math.random() * Math.PI * 2;
-            const d = 600 + Math.random() * 800;
-
-         zombies.push({
-  type: typeKey,
-  x: p.x + Math.cos(ang) * d,
-  y: p.y + Math.sin(ang) * d,
-  vx: rand(-1,1),
-  vy: rand(-1,1),
-  speed: ZOMBIE_BASE_SPEED * rand(t.speedMin, t.speedMax),
-  size: ZOMBIE_R * t.size,
-  damage: t.damage,
-  color: t.color,
-  hitCD: 0,
-  dirTimer: rand(1,3)
-});
-          }
-        }
-        extraZombiesAdded = true;
-      }
-
-      if (elapsed > ZOMBIE_HOUR_END && isZombieHour) {
-        isZombieHour = false;
-        zombieWarning = false;
-        extraZombiesAdded = false;
-        zombies.length = 0;
-      }
-    }
-
-    if (zombieWarning) {
-      zombieWarningTimer -= dt;
       if (countdownBig) {
-        countdownBig.textContent =
-          `⚠️ ZOMBİ SAATİ ${Math.ceil(zombieWarningTimer)} SANİYE SONRA`;
+        countdownBig.textContent = `⏱️ Oyun ${Math.ceil(phaseLeft)} saniye sonra başlıyor…`;
       }
-      if (zombieWarningTimer <= 0) {
-        zombieWarning = false;
-        if (countdownBig) countdownBig.textContent = "";
-      }
+
+    } else if (phase === PHASE.GAME) {
+      if (hudTime) hudTime.textContent = formatTime(phaseLeft);
+
+      // ✅ İSTEDİĞİN: lobby dışına çıkınca temizle
+      if (countdownBig) countdownBig.textContent = "";
+
+    } else if (phase === PHASE.RESULTS) {
+      if (hudTime) hudTime.textContent = "00:00";
+
+      if (countdownBig) countdownBig.textContent = "";
+
+      const sec = Math.max(0, Math.ceil(phaseLeft));
+      if (resultCountdown) resultCountdown.textContent = String(sec);
     }
 
-    if (hudEggs) {
-  hudEggs.textContent = String(remainingEggs);
+    if (hudEggs) hudEggs.textContent = String(remainingEggs);
+
+// ===== Game logic =====
+if (me && phase === PHASE.GAME) {
+
+  const { vx, vy, moving } = getMoveVector();
+
+  // 🟦 STAMINA
+  if (moving && me.stamina > 0) {
+    me.stamina -= STAMINA_DRAIN * dt;
+  } else {
+    me.stamina += STAMINA_REGEN * dt;
+  }
+  me.stamina = clamp(me.stamina, 0, STAMINA_MAX);
+
+  // 🏃 HIZ
+const speed = getPlayerSpeed(me);
+
+
+  me.x += vx * speed * dt;
+  me.y += vy * speed * dt;
+
+  me.x = clamp(me.x, me.r, WORLD_W - me.r);
+  me.y = clamp(me.y, me.r, WORLD_H - me.r);
+
+  tryPickupEggs(me);
+}
+
+if (isZombieHour && me) {
+  for (const z of zombies) {
+
+    z.dirTimer -= dt;
+    if (z.dirTimer <= 0) {
+      z.vx = rand(-1,1);
+      z.vy = rand(-1,1);
+      const l = Math.hypot(z.vx, z.vy) || 1;
+      z.vx /= l;
+      z.vy /= l;
+      z.dirTimer = rand(1,3);
+    }
+
+    z.x += z.vx * z.speed * dt;
+    z.y += z.vy * z.speed * dt;
+
+    z.x = clamp(z.x, 0, WORLD_W);
+    z.y = clamp(z.y, 0, WORLD_H);
+
+    z.hitCD -= dt;
+    if (
+  z.hitCD <= 0 &&
+  dist2(z.x, z.y, me.x, me.y) < (z.size + me.r) ** 2
+) {
+  me.eggs = Math.max(0, me.eggs - z.damage);
+
+  // 🔴 -1 / -2 yazısı
+  effects.push({
+    type: "minus",
+    x: me.x,
+    y: me.y - 18,
+    text: `-${z.damage}`,
+    life: 0.9,
+    vy: -30,
+    color: "#ff3b3b"
+  });
+
+  z.hitCD = ZOMBIE_HIT_COOLDOWN;
+}
+
+  }
 }
 
 
-    // =========================
-    // PLAYER LOGIC
-    // =========================
-    if (me && phase === PHASE.GAME) {
-      const { vx, vy, moving } = getMoveVector();
+    // ===== Effects update =====
+for (let i = effects.length - 1; i >= 0; i--) {
+  const ef = effects[i];
+  ef.life -= dt;
 
-      if (moving && me.stamina > 0) {
-        me.stamina -= STAMINA_DRAIN * dt;
-      } else {
-        me.stamina += STAMINA_REGEN * dt;
-      }
-      me.stamina = clamp(me.stamina, 0, STAMINA_MAX);
+  if (ef.type === "plus" || ef.type === "minus") {
+    ef.y += (ef.vy || -34) * dt;
+  }
+  else if (ef.type === "particle") {
+    ef.x += ef.vx * dt;
+    ef.y += ef.vy * dt;
+    ef.vx *= (1 - 2.2 * dt);
+    ef.vy *= (1 - 2.2 * dt);
+  }
 
-      const speed = getPlayerSpeed(me);
-      me.x += vx * speed * dt;
-      me.y += vy * speed * dt;
+  if (ef.life <= 0) effects.splice(i, 1);
+}
 
-      me.x = clamp(me.x, me.r, WORLD_W - me.r);
-      me.y = clamp(me.y, me.r, WORLD_H - me.r);
 
-      tryPickupEggs(me);
-      sendMyMoveThrottled(now, me);
-    }
-
-    // =========================
-    // ZOMBIE DAMAGE
-    // =========================
-    if (isZombieHour && me) {
-      for (const z of zombies) {
-        z.dirTimer -= dt;
-        if (z.dirTimer <= 0) {
-          z.vx = rand(-1,1);
-          z.vy = rand(-1,1);
-          const l = Math.hypot(z.vx, z.vy) || 1;
-          z.vx /= l;
-          z.vy /= l;
-          z.dirTimer = rand(1,3);
-        }
-
-        z.x += z.vx * z.speed * dt;
-        z.y += z.vy * z.speed * dt;
-
-        z.x = clamp(z.x, 0, WORLD_W);
-        z.y = clamp(z.y, 0, WORLD_H);
-
-        z.hitCD -= dt;
-        if (
-          z.hitCD <= 0 &&
-          dist2(z.x, z.y, me.x, me.y) < (z.size + me.r) ** 2
-        ) {
-          me.eggs = Math.max(0, me.eggs - z.damage);
-
-          effects.push({
-            type: "minus",
-            x: me.x,
-            y: me.y - 18,
-            text: `-${z.damage}`,
-            life: 0.9,
-            vy: -30,
-            color: "#ff3b3b"
-          });
-
-          z.hitCD = ZOMBIE_HIT_COOLDOWN;
-        }
-      }
-    }
-
-    // =========================
-    // EFFECTS UPDATE
-    // =========================
-    for (let i = effects.length - 1; i >= 0; i--) {
-      const ef = effects[i];
-      ef.life -= dt;
-
-      if (ef.type === "plus" || ef.type === "minus") {
-        ef.y += (ef.vy || -34) * dt;
-      } else if (ef.type === "particle") {
-        ef.x += ef.vx * dt;
-        ef.y += ef.vy * dt;
-        ef.vx *= (1 - 2.2 * dt);
-        ef.vy *= (1 - 2.2 * dt);
-      }
-
-      if (ef.life <= 0) effects.splice(i, 1);
-    }
-
-    // =========================
-    // RENDER
-    // =========================
+    // ===== Render =====
     drawFrame(me);
 
+    // ===== UI lists (sadece join olduysa) =====
     if (getMe()) {
       renderLeaderboard();
       renderLobbyList();
@@ -1267,16 +1257,16 @@ else if (phase === PHASE.RESULTS) {
     requestAnimationFrame(tick);
   }
 
-  // =========================
-  // DRAW FRAME
-  // =========================
   function drawFrame(me) {
     const viewW = window.innerWidth;
     const viewH = window.innerHeight;
 
+    // Clear
     ctx.clearRect(0, 0, viewW, viewH);
 
     const zoom = CAMERA_ZOOM;
+
+    // Camera
     let camX = 0, camY = 0;
     if (me) {
       const cam = computeCamera(me, zoom);
@@ -1284,137 +1274,148 @@ else if (phase === PHASE.RESULTS) {
       camY = cam.camY;
     }
 
+    // Ground
     drawWorldGround(camX, camY, zoom);
 
+    // Visible range for objects
+    const startCol = Math.floor(camX / TILE_SIZE);
+    const endCol = Math.ceil((camX + viewW / zoom) / TILE_SIZE);
+    const startRow = Math.floor(camY / TILE_SIZE);
+    const endRow = Math.ceil((camY + viewH / zoom) / TILE_SIZE);
+
+    // 1) Eggs first (under trees)
     for (const e of eggs) {
       if (!e.takenBy) drawEgg(e, camX, camY, zoom);
     }
 
+    // 2) Build drawables for depth sorting: trees + players (Y sort)
     const drawables = [];
 
+    // Trees
+    for (let ty = startRow; ty < endRow; ty++) {
+      if (ty < 0 || ty >= WORLD_ROWS) continue;
+      for (let tx = startCol; tx < endCol; tx++) {
+        if (tx < 0 || tx >= WORLD_COLS) continue;
+        if (!tileHasTree(tx, ty)) continue;
+
+        const t = getTreeSpec(tx, ty);
+        drawables.push({
+          kind: "tree",
+          y: t.baseY,
+          tree: t,
+        });
+      }
+    }
+
+    // Players
     for (const p of players) {
+      // ağacın arkasındaysa yarı şeffaf
       let alpha = 1;
       const nearTree = findNearbyTreeForPlayer(p);
-      if (nearTree && p.y < nearTree.baseY - 2) alpha = 0.55;
-
-      drawables.push({ kind: "player", y: p.y, player: p, alpha });
-    }
-
-    if (isZombieHour) {
-      for (const z of zombies) {
-        drawables.push({ kind: "zombie", y: z.y, zombie: z });
+      if (nearTree) {
+        // "arkada" olma: oyuncu tree baseY'den yukarıdaysa (daha küçük y)
+        const behind = p.y < nearTree.baseY - 2;
+        if (behind) alpha = 0.55;
       }
+
+      drawables.push({
+        kind: "player",
+        y: p.y,
+        player: p,
+        alpha,
+      });
     }
+// Zombies
+if (isZombieHour) {
+  for (const z of zombies) {
+    drawables.push({
+      kind: "zombie",
+      y: z.y,
+      zombie: z
+    });
+  }
+}
+    // Sort by Y (top to bottom)
+    drawables.sort((a, b) => a.y - b.y);
 
-    drawables.sort((a,b) => a.y - b.y);
+// Draw sorted
+for (const d of drawables) {
 
-    for (const d of drawables) {
-      if (d.kind === "player") {
-        drawPlayer(d.player, camX, camY, zoom, d.alpha);
-      } else if (d.kind === "zombie") {
-        const z = d.zombie;
-        const sx = (z.x - camX) * zoom;
-        const sy = (z.y - camY) * zoom;
+	if (d.kind === "tree") {
+  drawTree(d.tree, camX, camY, zoom);
+}
+else if (d.kind === "player") {
+  drawPlayer(d.player, camX, camY, zoom, d.alpha);
+}
+else if (d.kind === "zombie") {
+  const z = d.zombie;
+  const sx = (z.x - camX) * zoom;
+  const sy = (z.y - camY) * zoom;
 
-        ctx.save();
-        ctx.fillStyle = z.color;
-        ctx.shadowColor = z.color;
-        ctx.shadowBlur = 12;
-        ctx.beginPath();
-        ctx.arc(sx, sy, z.size * zoom, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-    }
+  ctx.save();
+  ctx.fillStyle = z.color;
+  ctx.shadowColor = z.color;
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.arc(sx, sy, z.size * zoom, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+} // ❗ BU PARANTEZ ŞART
+// 3) Effects on top (HER ŞEYDEN SONRA)
+for (const ef of effects) {
+  const sx = (ef.x - camX) * zoom;
+  const sy = (ef.y - camY) * zoom;
 
-    for (const ef of effects) {
-      const sx = (ef.x - camX) * zoom;
-      const sy = (ef.y - camY) * zoom;
+  if (ef.type === "plus") {
+    ctx.save();
+    ctx.globalAlpha = clamp(ef.life / 0.85, 0, 1);
+    ctx.fillStyle = "#ffd700";
+    ctx.font = `${Math.max(14, 18 * zoom)}px monospace`;
+    ctx.textAlign = "center";
+    ctx.fillText(ef.text, sx, sy);
+    ctx.restore();
+  }
 
-      ctx.save();
-      ctx.globalAlpha = clamp(ef.life, 0, 1);
-      ctx.fillStyle = ef.color || "#ffd700";
-      ctx.font = `${Math.max(14, 18 * zoom)}px monospace`;
-      ctx.textAlign = "center";
-      ctx.fillText(ef.text, sx, sy);
-      ctx.restore();
-    }
+  if (ef.type === "minus") {
+    ctx.save();
+    ctx.globalAlpha = clamp(ef.life / 0.9, 0, 1);
+    ctx.fillStyle = ef.color || "#ff3333";
+    ctx.font = `${Math.max(14, 18 * zoom)}px monospace`;
+    ctx.textAlign = "center";
+    ctx.fillText(ef.text, sx, sy);
+    ctx.restore();
+  }
 
+  if (ef.type === "particle") {
+    ctx.save();
+    ctx.globalAlpha = clamp(ef.life / 0.8, 0, 1);
+    ctx.fillStyle = "rgba(255,220,120,1)";
+    ctx.fillRect(sx, sy, 3 * zoom, 3 * zoom);
+    ctx.restore();
+  }
+}
+    // 4) Fog overlay (distance effect)
     drawFogOverlay();
-    drawStaminaBar(me);
+	drawStaminaBar(me);
   }
 
-  // =========================
-  // SOCKET EVENTS
-  // =========================
-  if (socket) {
-    socket.on("init", data => {
-      myId = data.id;
+  // ===== INIT =====
+  generateWorldTiles();
+  spawnEggs();
 
-      players.length = 0;
-      playersById.clear();
-      data.players.forEach(upsertPlayer);
+  // İlk başta join yok -> overlay açık, story kapalı
+  if (storyPanel) storyPanel.style.display = "none";
+  if (resultOverlay) resultOverlay.style.display = "none";
+  if (countdownBig) countdownBig.textContent = "";
 
-      applyServerEggs(data.eggs);
-      setPhaseByTotalTimeLeft(data.timeLeft);
+  // phase text default
+  if (phaseText) phaseText.textContent = "LOBBY";
+  if (hudTime) hudTime.textContent = formatTime(LOBBY_SECONDS);
+  if (hudEggs) hudEggs.textContent = String(remainingEggs);
 
-      if (overlay) overlay.style.display = "none";
-    });
-
-    socket.on("playerJoined", p => upsertPlayer(p));
-    socket.on("playerLeft", id => removePlayer(id));
-    socket.on("playerMoved", p => upsertPlayer(p));
-
-    socket.on("eggTaken", ({ eggId, playerId }) => {
-  const e = eggs.find(x => x.id === eggId);
-  if (e) e.takenBy = playerId;
-
-  // 🔥 SKORU CLIENT'TA DA ARTIR
-  const p = playersById.get(playerId);
-  if (p) {
-    p.eggs += 1;
-  }
-
-  // 🔥 PANELİ ZORLA YENİDEN ÇİZ
-  renderLeaderboard();
-});
+  // Başlangıç: lobby state (ama timer sadece join olunca akacak)
 
 
-    socket.on("gameOver", () => {
-      phase = PHASE.RESULTS;
-      phaseLeft = 0;
-    });
-
-    socket.on("tick", totalLeft => {
-      setPhaseByTotalTimeLeft(totalLeft);
-    });
-	  console.log("🟢 OYUN ONLINE - SOCKET BAĞLANDI");
-
-  }
-
-  // =========================
-  // INIT
-  // =========================
-  // =========================
-// INIT
-// =========================
-generateWorldTiles();
-
-storyShown = false;
-if (storyPanel) storyPanel.style.display = "none";
-
-if (overlay) overlay.style.display = "block";
-requestAnimationFrame(tick);
-
+  requestAnimationFrame(tick);
 })();
-
-
-
-
-
-
-
-
-
-
-
