@@ -622,7 +622,7 @@ let remainingEggs = 0;
         }
 
         // local skor hemen artsın (serverdan da gelebilir ama gecikmesin)
-        me.eggs += 1;
+  
 remainingEggs--;
 
         break;
@@ -1053,6 +1053,7 @@ function tick(now) {
 
     // ===== phase UI (server time)
     // serverTimeLeftTotal azalacak, biz ona göre phaseLeft hesaplıyoruz.
+// ===== PHASE UI (NET VE DÜZGÜN) =====
 if (phase === PHASE.LOBBY) {
   if (hudTime) hudTime.textContent = formatTime(phaseLeft);
 
@@ -1065,28 +1066,38 @@ if (phase === PHASE.LOBBY) {
     countdownBig.textContent =
       `⏱️ Oyun ${Math.ceil(phaseLeft)} saniye sonra başlıyor…`;
   }
-	// 🔥 LOBBY SAYACI HER FRAME YENİLENSİN
-if (phase === PHASE.LOBBY) {
+
+  // Lobby UI her frame güncellensin
   renderLobbyList();
   renderLeaderboard();
-}
-
-
-  // ✅ ORMAN DİYARI KONTROLÜ
-  if (storyPanel) {
-    if (phaseLeft <= 5 && !storyShown) {
-     // storyPanel.style.display = "block";
-      storyShown = true;
-    }
-
-    if (phaseLeft > 5) {
-     // storyPanel.style.display = "none";
-      storyShown = false;
-    }
-  }
 
   if (resultOverlay) resultOverlay.style.display = "none";
 }
+
+else if (phase === PHASE.GAME) {
+  if (hudTime) hudTime.textContent = formatTime(phaseLeft);
+
+  if (lobbyInfoEl) {
+    lobbyInfoEl.textContent = "Oyun başladı! Yumurtaları topla.";
+  }
+
+  if (countdownBig) countdownBig.textContent = "";
+
+  if (storyPanel) storyPanel.style.display = "none";
+  if (resultOverlay) resultOverlay.style.display = "none";
+}
+
+else if (phase === PHASE.RESULTS) {
+  if (hudTime) hudTime.textContent = "00:00";
+  if (countdownBig) countdownBig.textContent = "";
+
+  showResults();
+}
+
+// STORY PANEL RESET (phase bağımsız, EN SON)
+if (storyPanel) storyPanel.style.display = "none";
+storyShown = false;
+
 
 if (storyPanel) storyPanel.style.display = "none";
 storyShown = false;
@@ -1133,20 +1144,19 @@ storyShown = false;
             const ang = Math.random() * Math.PI * 2;
             const d = 600 + Math.random() * 800;
 
-            zombies.push({
-              type: typeKey,
-              x: p.x + Math.cos(ang) * d,
-              y: p.y + Math.sin(ang) * d,
-			                y: p.y + Math.sin(ang) * d,
-              vx: rand(-1,1),
-              vy: rand(-1,1),
-              speed: ZOMBIE_BASE_SPEED * rand(t.speedMin, t.speedMax),
-              size: ZOMBIE_R * t.size,
-              damage: t.damage,
-              color: t.color,
-              hitCD: 0,
-              dirTimer: rand(1,3)
-            });
+         zombies.push({
+  type: typeKey,
+  x: p.x + Math.cos(ang) * d,
+  y: p.y + Math.sin(ang) * d,
+  vx: rand(-1,1),
+  vy: rand(-1,1),
+  speed: ZOMBIE_BASE_SPEED * rand(t.speedMin, t.speedMax),
+  size: ZOMBIE_R * t.size,
+  damage: t.damage,
+  color: t.color,
+  hitCD: 0,
+  dirTimer: rand(1,3)
+});
           }
         }
         extraZombiesAdded = true;
@@ -1410,6 +1420,7 @@ storyShown = false;
 
   requestAnimationFrame(tick);
 })();
+
 
 
 
