@@ -1103,20 +1103,6 @@ else if (phase === PHASE.RESULTS) {
 // 🔒 STORY RESET (HER FRAME, AYRI)
 
 
-    else if (phase === PHASE.GAME) {
-      if (hudTime) hudTime.textContent = formatTime(phaseLeft);
-      if (lobbyInfoEl) lobbyInfoEl.textContent = `Oyun başladı! 8 dakika içinde yumurtaları topla.`;
-      if (countdownBig) countdownBig.textContent = "";
-      if (storyPanel) storyPanel.style.display = "none";
-      if (resultOverlay) resultOverlay.style.display = "none";
-    }
-    else if (phase === PHASE.RESULTS) {
-      if (hudTime) hudTime.textContent = "00:00";
-      if (countdownBig) countdownBig.textContent = "";
-      if (resultOverlay) resultOverlay.style.display = "grid";
-      showResults();
-    }
-
     // ===== Zombie warning + zombie hour (asıl mantık)
     if (phase === PHASE.GAME) {
       const elapsed = GAME_SECONDS - phaseLeft;
@@ -1427,6 +1413,7 @@ if (overlay) overlay.style.display = "block";
 requestAnimationFrame(tick);
 
 })();
+
 
 
 
