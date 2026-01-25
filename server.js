@@ -8,25 +8,30 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = 4001;
+const MAX_PLAYERS = 20;
 const GAME_DURATION = 600; // 10 dk
+
 const rooms = new Map();
 
 app.use(express.static(path.join(__dirname, "public")));
-app.get("/", (_, res) =>
+app.get("/", (req, res) =>
   res.sendFile(path.join(__dirname, "public", "index.html"))
 );
 
 io.on("connection", socket => {
+
   socket.on("joinRoom", ({ roomId, nick, avatar }) => {
     if (!rooms.has(roomId)) createRoom(roomId);
     const room = rooms.get(roomId);
+
+    if (room.players.size >= MAX_PLAYERS) return;
 
     const player = {
       id: socket.id,
       nick,
       avatar,
-      x: Math.random() * 3000,
-      y: Math.random() * 2000,
+      x: Math.random() * 5000,
+      y: Math.random() * 3000,
       eggs: 0
     };
 
@@ -48,15 +53,20 @@ io.on("connection", socket => {
     if (!room) return;
     const p = room.players.get(socket.id);
     if (!p) return;
-    p.x = x; p.y = y;
+
+    p.x = x;
+    p.y = y;
+
     socket.to(roomId).emit("playerMoved", p);
   });
 
   socket.on("pickupEgg", ({ roomId, eggId }) => {
     const room = rooms.get(roomId);
     if (!room) return;
+
     const egg = room.eggs.find(e => e.id === eggId);
     if (!egg || egg.taken) return;
+
     egg.taken = true;
 
     const p = room.players.get(socket.id);
@@ -67,28 +77,43 @@ io.on("connection", socket => {
       playerId: socket.id
     });
   });
+
+  socket.on("disconnect", () => {
+    for (const [roomId, room] of rooms) {
+      if (room.players.has(socket.id)) {
+        room.players.delete(socket.id);
+        io.to(roomId).emit("playerLeft", socket.id);
+        if (room.players.size === 0) {
+          clearInterval(room.interval);
+          rooms.delete(roomId);
+        }
+      }
+    }
+  });
 });
 
 function createRoom(roomId) {
-  const eggs = Array.from({ length: 100 }, (_, i) => ({
+  const eggs = Array.from({ length: 1000 }, (_, i) => ({
     id: i,
-    x: Math.random() * 3000,
-    y: Math.random() * 2000,
+    x: Math.random() * 8000,
+    y: Math.random() * 5000,
     taken: false
   }));
 
   const room = {
     players: new Map(),
     eggs,
-    startTime: Date.now()
+    startTime: Date.now(),
+    interval: null
   };
 
-  room.timer = setInterval(() => {
-    const left = getTimeLeft(room);
-    io.to(roomId).emit("tick", left);
-    if (left <= 0) {
+  room.interval = setInterval(() => {
+    const timeLeft = getTimeLeft(room);
+    io.to(roomId).emit("tick", timeLeft);
+
+    if (timeLeft <= 0) {
       io.to(roomId).emit("gameOver");
-      clearInterval(room.timer);
+      clearInterval(room.interval);
       rooms.delete(roomId);
     }
   }, 1000);
@@ -97,12 +122,10 @@ function createRoom(roomId) {
 }
 
 function getTimeLeft(room) {
-  return Math.max(
-    0,
-    GAME_DURATION - Math.floor((Date.now() - room.startTime) / 1000)
-  );
+  const elapsed = (Date.now() - room.startTime) / 1000;
+  return Math.max(0, GAME_DURATION - Math.floor(elapsed));
 }
 
 server.listen(PORT, () =>
-  console.log("🚀 Server açık:", PORT)
+  console.log("🚀 Server aktif:", PORT)
 );
