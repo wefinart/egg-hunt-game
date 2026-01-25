@@ -1039,9 +1039,15 @@ remainingEggs--;
   // =========================
   let lastTime = performance.now();
 
-  function tick(now) {
-    const dt = Math.min(0.05, (now - lastTime) / 1000);
-    lastTime = now;
+function tick(now) {
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+
+  // 🔥 CLIENT SIDE COUNTDOWN
+  if (phaseLeft > 0) {
+    phaseLeft -= dt;
+    if (phaseLeft < 0) phaseLeft = 0;
+  }
 
     const me = getMe();
 
@@ -1059,6 +1065,12 @@ if (phase === PHASE.LOBBY) {
     countdownBig.textContent =
       `⏱️ Oyun ${Math.ceil(phaseLeft)} saniye sonra başlıyor…`;
   }
+	// 🔥 LOBBY SAYACI HER FRAME YENİLENSİN
+if (phase === PHASE.LOBBY) {
+  renderLobbyList();
+  renderLeaderboard();
+}
+
 
   // ✅ ORMAN DİYARI KONTROLÜ
   if (storyPanel) {
@@ -1398,6 +1410,7 @@ storyShown = false;
 
   requestAnimationFrame(tick);
 })();
+
 
 
 
