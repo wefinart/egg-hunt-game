@@ -199,3 +199,44 @@ canvas {
   font-size: 13px;
   opacity: 0.8;
 }
+/* ===============================
+   AVATAR / ICON SEÇİMİ FIX
+   =============================== */
+
+.avatarGrid{
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.avatarBtn{
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  border: 2px solid rgba(255,255,255,0.10);
+  cursor: pointer;
+}
+
+.avatarBtn.selected{
+  border-color: rgba(255,255,255,0.9);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.15);
+}
+
+/* ===============================
+   GİRİŞ (LOGIN) KART GENİŞLİK
+   =============================== */
+
+.overlayCard{
+  width: min(520px, 92vw);
+}
+
+/* ===============================
+   NASIL OYNANIR (STORY) MOBİL FIX
+   =============================== */
+
+.storyPanel{
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
