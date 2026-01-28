@@ -141,7 +141,7 @@ let remainingEggs = 0;
 
   // Kamera / Zoom
   const CAMERA_ZOOM = 0.70;
-  const CAMERA_Y_OFFSET = 40;
+  const CAMERA_Y_OFFSET = 0;
 
   // Ağaç ayarları (deterministik)
   const TREE_CHANCE = 0.40;
@@ -360,7 +360,7 @@ function spawnZombies(extraCount = 0) {
       do {
         tx = Math.floor(Math.random() * WORLD_COLS);
         ty = Math.floor(Math.random() * WORLD_ROWS);
-      } while (worldTiles[ty]?.[tx] !== TILE_FOREST);
+      } while (ty < 0 || ty >= WORLD_ROWS || tx < 0 || tx >= WORLD_COLS);
 
       eggs.push({
         id: i,
@@ -906,65 +906,52 @@ remainingEggs--;
     }
   }
 
-  function drawWorldGround(camX, camY, zoom) {
-    const viewW = window.innerWidth;
-    const viewH = window.innerHeight;
+ function drawWorldGround(camX, camY, zoom) {
+  const viewW = window.innerWidth;
+  const viewH = window.innerHeight;
 
-    const startCol = Math.floor(camX / TILE_SIZE);
-    const endCol = Math.ceil((camX + viewW / zoom) / TILE_SIZE);
-    const startRow = Math.floor(camY / TILE_SIZE);
-    const endRow = Math.ceil((camY + viewH / zoom) / TILE_SIZE);
+  const startCol = Math.floor(camX / TILE_SIZE);
+  const endCol = Math.ceil((camX + viewW / zoom) / TILE_SIZE);
+  const startRow = Math.floor(camY / TILE_SIZE);
+  const endRow = Math.ceil((camY + viewH / zoom) / TILE_SIZE);
 
-    for (let y = startRow; y < endRow; y++) {
-      if (y < 0 || y >= WORLD_ROWS) continue;
-      for (let x = startCol; x < endCol; x++) {
-        if (x < 0 || x >= WORLD_COLS) continue;
+  // === ZEMİN TILE'LARI ===
+  for (let y = startRow; y < endRow; y++) {
+    if (y < 0 || y >= WORLD_ROWS) continue;
+    for (let x = startCol; x < endCol; x++) {
+      if (x < 0 || x >= WORLD_COLS) continue;
 
-        const tile = worldTiles[y][x];
-        const sx = (x * TILE_SIZE - camX) * zoom;
-        const sy = (y * TILE_SIZE - camY) * zoom;
+      const tile = worldTiles[y][x];
+      const sx = (x * TILE_SIZE - camX) * zoom;
+      const sy = (y * TILE_SIZE - camY) * zoom;
 
-        if (tile === TILE_FOREST) {
-          const distY = Math.abs((y * TILE_SIZE) - camY);
-          const depth = clamp(distY / 3000, 0, 1);
-
-          const forestNear = [31, 90, 50];
-          const forestFar  = [20, 60, 40];
-
-          const rr = Math.floor(forestNear[0] * (1 - depth) + forestFar[0] * depth);
-          const gg = Math.floor(forestNear[1] * (1 - depth) + forestFar[1] * depth);
-          const bb = Math.floor(forestNear[2] * (1 - depth) + forestFar[2] * depth);
-
-          ctx.fillStyle = `rgb(${rr},${gg},${bb})`;
-          ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
-
-          ctx.fillStyle = "rgba(80,255,170,0.06)";
-          const r2 = rand01Tile(x, y, 10);
-          if (r2 < 0.35) {
-            ctx.fillRect(sx + 6 * zoom, sy + 6 * zoom, 3 * zoom, 3 * zoom);
-          }
-        } else if (tile === TILE_CLEAR) {
-          ctx.fillStyle = "#355f3b";
-          ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
-        } else if (tile === TILE_PATH) {
-          ctx.fillStyle = "#6b4b2a";
-          ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
-
-          const n = rand01Tile(x, y, 77);
-
-          if (n < 0.35) {
-            ctx.fillStyle = "rgba(0,0,0,0.12)";
-            ctx.fillRect(sx + 4 * zoom, sy + 6 * zoom, 4 * zoom, 2 * zoom);
-          }
-
-          if (n > 0.6) {
-            ctx.fillStyle = "rgba(255,230,180,0.08)";
-            ctx.fillRect(sx + 10 * zoom, sy + 12 * zoom, 3 * zoom, 3 * zoom);
-          }
-        }
+      if (tile === TILE_FOREST) {
+        ctx.fillStyle = "#1f5a32";
+        ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
+      } else if (tile === TILE_CLEAR) {
+        ctx.fillStyle = "#355f3b";
+        ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
+      } else if (tile === TILE_PATH) {
+        ctx.fillStyle = "#6b4b2a";
+        ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
       }
     }
   }
+
+  // 🌲🌲🌲 AĞAÇLAR TAM BURAYA 🌲🌲🌲
+  for (let y = startRow; y < endRow; y++) {
+    if (y < 0 || y >= WORLD_ROWS) continue;
+    for (let x = startCol; x < endCol; x++) {
+      if (x < 0 || x >= WORLD_COLS) continue;
+
+      if (tileHasTree(x, y)) {
+        const tree = getTreeSpec(x, y);
+        drawTree(tree, camX, camY, zoom);
+      }
+    }
+  }
+}
+
 
   function drawEgg(e, camX, camY, zoom) {
     const sx = (e.x - camX) * zoom;
@@ -1110,7 +1097,10 @@ if (phase === PHASE.LOBBY) {
       `⏱️ Oyun ${Math.ceil(phaseLeft)} saniye sonra başlıyor…`;
   }
 
-  if (storyPanel) storyPanel.style.display = "none";
+  // ✅ LOBBY'DE PANEL AÇIK
+  if (storyPanel) storyPanel.style.display = "block";
+  storyShown = false;
+
   if (resultOverlay) resultOverlay.style.display = "none";
 
   renderLobbyList();
@@ -1120,21 +1110,17 @@ if (phase === PHASE.LOBBY) {
 else if (phase === PHASE.GAME) {
   if (hudTime) hudTime.textContent = formatTime(phaseLeft);
 
-  if (lobbyInfoEl) {
-    lobbyInfoEl.textContent = "Oyun başladı! Yumurtaları topla.";
-  }
-
+  if (lobbyInfoEl) lobbyInfoEl.textContent = "Oyun başladı! Yumurtaları topla.";
   if (countdownBig) countdownBig.textContent = "";
 
-  // ✅ STORY SADECE 1 KERE AÇILSIN
-  if (!storyShown) {
-	  storyShown = true;
-    if (storyPanel) storyPanel.style.display = "block";
-    storyShown = true;
-  }
+  // ✅ OYUN BAŞLAYINCA PANEL KAPANSIN
+  if (storyPanel) storyPanel.style.display = "none";
 
   if (resultOverlay) resultOverlay.style.display = "none";
 }
+
+
+
 
 else if (phase === PHASE.RESULTS) {
   if (hudTime) hudTime.textContent = "00:00";
@@ -1462,6 +1448,7 @@ if (overlay) overlay.style.display = "block";
 requestAnimationFrame(tick);
 
 })();
+
 
 
 
