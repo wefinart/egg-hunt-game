@@ -96,6 +96,8 @@
 	let storyShown = false;
 
 let remainingEggs = 0;
+	const optimisticEggs = new Set();
+
 	
   const zombies = [];
 
@@ -259,19 +261,58 @@ let remainingEggs = 0;
     return "normal";
   }
 
-  function spawnZombies() {
-    zombies.length = 0;
+// ===== ZOMBIE UTILS =====
+function spawnZombies(extraCount = 0) {
+  zombies.length = 0;
 
-    for (const p of players) {
-      for (let i = 0; i < ZOMBIE_COUNT_PER_PLAYER; i++) {
-        const typeKey = getZombieType();
-        const t = ZOMBIE_TYPES[typeKey];
+  for (const p of players) {
+    for (let i = 0; i < ZOMBIE_COUNT_PER_PLAYER; i++) {
+      const typeKey = getZombieType();
+      const t = ZOMBIE_TYPES[typeKey];
 
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 500 + Math.random() * 700;
-      }
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 500 + Math.random() * 700; // oyuncudan uzakta doğsun
+
+      zombies.push({
+        type: typeKey,
+        x: p.x + Math.cos(angle) * dist,
+        y: p.y + Math.sin(angle) * dist,
+        vx: rand(-1, 1),
+        vy: rand(-1, 1),
+        speed: ZOMBIE_BASE_SPEED * rand(t.speedMin, t.speedMax),
+        size: ZOMBIE_R * t.size,
+        damage: t.damage,
+        color: t.color,
+        hitCD: 0,
+        dirTimer: rand(1, 3)
+      });
+    }
+
+    // (opsiyonel) ekstra zombi istersen:
+    for (let i = 0; i < extraCount; i++) {
+      const typeKey = getZombieType();
+      const t = ZOMBIE_TYPES[typeKey];
+
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 500 + Math.random() * 700;
+
+      zombies.push({
+        type: typeKey,
+        x: p.x + Math.cos(angle) * dist,
+        y: p.y + Math.sin(angle) * dist,
+        vx: rand(-1, 1),
+        vy: rand(-1, 1),
+        speed: ZOMBIE_BASE_SPEED * rand(t.speedMin, t.speedMax),
+        size: ZOMBIE_R * t.size,
+        damage: t.damage,
+        color: t.color,
+        hitCD: 0,
+        dirTimer: rand(1, 3)
+      });
     }
   }
+}
+
 
   // =========================
   // WORLD GEN (asıl)
@@ -552,7 +593,12 @@ let remainingEggs = 0;
       });
     }
 
-    if (resultCountdown) resultCountdown.textContent = "0";
+    if (resultCountdown) {
+  resultCountdown.textContent = String(
+    Math.max(0, Math.ceil(phaseLeft))
+  );
+}
+
   }
 
   // =========================
@@ -620,10 +666,12 @@ let remainingEggs = 0;
         if (socket && myId) {
           socket.emit("pickupEgg", { roomId: ROOM_ID, eggId: e.id });
         }
+		 // optimistic skor (client anında)
+me.eggs += 1;
+optimisticEggs.add(e.id);
 
-        // local skor hemen artsın (serverdan da gelebilir ama gecikmesin)
-  
 remainingEggs--;
+
 
         break;
       }
@@ -1080,6 +1128,7 @@ else if (phase === PHASE.GAME) {
 
   // ✅ STORY SADECE 1 KERE AÇILSIN
   if (!storyShown) {
+	  storyShown = true;
     if (storyPanel) storyPanel.style.display = "block";
     storyShown = true;
   }
@@ -1370,10 +1419,16 @@ else if (phase === PHASE.RESULTS) {
   if (e) e.takenBy = playerId;
 
   // 🔥 SKORU CLIENT'TA DA ARTIR
-  const p = playersById.get(playerId);
-  if (p) {
+const p = playersById.get(playerId);
+if (p) {
+  // Eğer bu yumurtayı ben client'ta zaten optimistic saydıysam
+  if (playerId === myId && optimisticEggs.has(eggId)) {
+    optimisticEggs.delete(eggId);
+  } else {
     p.eggs += 1;
   }
+}
+
 
   // 🔥 PANELİ ZORLA YENİDEN ÇİZ
   renderLeaderboard();
@@ -1407,6 +1462,7 @@ if (overlay) overlay.style.display = "block";
 requestAnimationFrame(tick);
 
 })();
+
 
 
 
