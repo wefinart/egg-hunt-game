@@ -1449,8 +1449,17 @@ if (p) {
     });
 
     socket.on("tick", totalLeft => {
-      setPhaseByTotalTimeLeft(totalLeft);
-    });
+  setPhaseByTotalTimeLeft(totalLeft);
+
+  // 🔒 UI'YI ZORLA GÜNCELLE
+  if (hudTime) hudTime.textContent = formatTime(phaseLeft);
+
+  if (countdownBig && phase === PHASE.LOBBY) {
+    countdownBig.textContent =
+      `⏱️ Oyun ${Math.ceil(phaseLeft)} saniye sonra başlıyor…`;
+  }
+});
+
 	  console.log("🟢 OYUN ONLINE - SOCKET BAĞLANDI");
 
   }
@@ -1470,6 +1479,7 @@ if (overlay) overlay.style.display = "block";
 requestAnimationFrame(tick);
 
 })();
+
 
 
 
