@@ -906,7 +906,7 @@ remainingEggs--;
     }
   }
 
- function drawWorldGround(camX, camY, zoom) {
+	function drawWorldGround(camX, camY, zoom) {
   const viewW = window.innerWidth;
   const viewH = window.innerHeight;
 
@@ -927,18 +927,26 @@ remainingEggs--;
 
       if (tile === TILE_FOREST) {
         ctx.fillStyle = "#1f5a32";
-        ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
       } else if (tile === TILE_CLEAR) {
         ctx.fillStyle = "#355f3b";
-        ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
       } else if (tile === TILE_PATH) {
         ctx.fillStyle = "#6b4b2a";
-        ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
       }
+
+      ctx.fillRect(sx, sy, TILE_SIZE * zoom, TILE_SIZE * zoom);
     }
   }
+}
 
-  // 🌲🌲🌲 AĞAÇLAR TAM BURAYA 🌲🌲🌲
+function drawTrees(camX, camY, zoom) {
+  const viewW = window.innerWidth;
+  const viewH = window.innerHeight;
+
+  const startCol = Math.floor(camX / TILE_SIZE);
+  const endCol = Math.ceil((camX + viewW / zoom) / TILE_SIZE);
+  const startRow = Math.floor(camY / TILE_SIZE);
+  const endRow = Math.ceil((camY + viewH / zoom) / TILE_SIZE);
+
   for (let y = startRow; y < endRow; y++) {
     if (y < 0 || y >= WORLD_ROWS) continue;
     for (let x = startCol; x < endCol; x++) {
@@ -1305,79 +1313,93 @@ else if (phase === PHASE.RESULTS) {
   // =========================
   // DRAW FRAME
   // =========================
-  function drawFrame(me) {
-    const viewW = window.innerWidth;
-    const viewH = window.innerHeight;
+function drawFrame(me) {
+  const viewW = window.innerWidth;
+  const viewH = window.innerHeight;
 
-    ctx.clearRect(0, 0, viewW, viewH);
+  ctx.clearRect(0, 0, viewW, viewH);
 
-    const zoom = CAMERA_ZOOM;
-    let camX = 0, camY = 0;
-    if (me) {
-      const cam = computeCamera(me, zoom);
-      camX = cam.camX;
-      camY = cam.camY;
+  const zoom = CAMERA_ZOOM;
+  let camX = 0, camY = 0;
+
+  if (me) {
+    const cam = computeCamera(me, zoom);
+    camX = cam.camX;
+    camY = cam.camY;
+  }
+
+  // 1️⃣ ZEMİN
+  drawWorldGround(camX, camY, zoom);
+
+  // 2️⃣ YUMURTALAR (AĞAÇLARIN ARKASINDA)
+  for (const e of eggs) {
+    if (!e.takenBy) drawEgg(e, camX, camY, zoom);
+  }
+
+  // 3️⃣ AĞAÇLAR
+  drawTrees(camX, camY, zoom);
+
+  // 4️⃣ PLAYER + ZOMBIE (Y-depth)
+  const drawables = [];
+
+  for (const p of players) {
+    let alpha = 1;
+
+    // 🌲 AĞAÇ ARKASI ŞEFFAFLIK
+    const nearTree = findNearbyTreeForPlayer(p);
+    if (nearTree && p.y < nearTree.baseY - 2) {
+      alpha = 0.45;
     }
 
-    drawWorldGround(camX, camY, zoom);
+    drawables.push({ type: "player", y: p.y, p, alpha });
+  }
 
-    for (const e of eggs) {
-      if (!e.takenBy) drawEgg(e, camX, camY, zoom);
+  if (isZombieHour) {
+    for (const z of zombies) {
+      drawables.push({ type: "zombie", y: z.y, z });
     }
+  }
 
-    const drawables = [];
+  drawables.sort((a, b) => a.y - b.y);
 
-    for (const p of players) {
-      let alpha = 1;
-      const nearTree = findNearbyTreeForPlayer(p);
-      if (nearTree && p.y < nearTree.baseY - 2) alpha = 0.55;
-
-      drawables.push({ kind: "player", y: p.y, player: p, alpha });
-    }
-
-    if (isZombieHour) {
-      for (const z of zombies) {
-        drawables.push({ kind: "zombie", y: z.y, zombie: z });
-      }
-    }
-
-    drawables.sort((a,b) => a.y - b.y);
-
-    for (const d of drawables) {
-      if (d.kind === "player") {
-        drawPlayer(d.player, camX, camY, zoom, d.alpha);
-      } else if (d.kind === "zombie") {
-        const z = d.zombie;
-        const sx = (z.x - camX) * zoom;
-        const sy = (z.y - camY) * zoom;
-
-        ctx.save();
-        ctx.fillStyle = z.color;
-        ctx.shadowColor = z.color;
-        ctx.shadowBlur = 12;
-        ctx.beginPath();
-        ctx.arc(sx, sy, z.size * zoom, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-    }
-
-    for (const ef of effects) {
-      const sx = (ef.x - camX) * zoom;
-      const sy = (ef.y - camY) * zoom;
+  for (const d of drawables) {
+    if (d.type === "player") {
+      drawPlayer(d.p, camX, camY, zoom, d.alpha);
+    } else {
+      const z = d.z;
+      const sx = (z.x - camX) * zoom;
+      const sy = (z.y - camY) * zoom;
 
       ctx.save();
-      ctx.globalAlpha = clamp(ef.life, 0, 1);
-      ctx.fillStyle = ef.color || "#ffd700";
-      ctx.font = `${Math.max(14, 18 * zoom)}px monospace`;
-      ctx.textAlign = "center";
-      ctx.fillText(ef.text, sx, sy);
+      ctx.fillStyle = z.color;
+      ctx.shadowColor = z.color;
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(sx, sy, z.size * zoom, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     }
-
-    drawFogOverlay();
-    drawStaminaBar(me);
   }
+
+  // 5️⃣ EFFECTLER
+  for (const ef of effects) {
+    const sx = (ef.x - camX) * zoom;
+    const sy = (ef.y - camY) * zoom;
+
+    ctx.save();
+    ctx.globalAlpha = clamp(ef.life, 0, 1);
+    ctx.fillStyle = ef.color || "#ffd700";
+    ctx.font = `${Math.max(14, 18 * zoom)}px monospace`;
+    ctx.textAlign = "center";
+    ctx.fillText(ef.text, sx, sy);
+    ctx.restore();
+  }
+
+  // 6️⃣ FOG + HUD
+  drawFogOverlay();
+  drawStaminaBar(me);
+}
+
 
   // =========================
   // SOCKET EVENTS
@@ -1448,6 +1470,7 @@ if (overlay) overlay.style.display = "block";
 requestAnimationFrame(tick);
 
 })();
+
 
 
 
